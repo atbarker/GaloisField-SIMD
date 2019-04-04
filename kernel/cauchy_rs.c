@@ -99,21 +99,21 @@ static int gf_self_test(void) {
                 uint8_t div1 = gf_div(prod, (uint8_t)i);
                 uint8_t div2;
                 if (div1 != j){
-                    //printf("first division failed\n");
+                    debug("first division failed\n");
                     return -1;
                 }
                 div2 = gf_div(prod, (uint8_t)j);
                 if (div2 != i){
-                    //printk(KERN_INFO "second division failed\n");
+                    debug("second division failed\n");
                     return -1;
                 }
             }
             else if (prod != 0){
-                //printk(KERN_INFO "Product is not zero\n");
+                debug("Product is not zero\n");
                 return -1;
             }
             if (j == 1 && prod != i){
-                //printf("Multiplication error\n");
+                debug("Multiplication error\n");
                 return -1;
             }
         }
@@ -132,8 +132,7 @@ static int gf_self_test(void) {
     gf_add_mem(m_SelfTestBuffers.A, m_SelfTestBuffers.B, kTestBufferBytes);
     for (i = 0; i < kTestBufferBytes; ++i) {
         if (m_SelfTestBuffers.A[i] != (0x1f ^ 0xf7)){
-	   printk(KERN_INFO "Failed first add test");
-	        //printf("addition failure\n");
+	        debug("addition failure\n");
             return -1;
         }
 	}
@@ -147,7 +146,7 @@ static int gf_self_test(void) {
     gf_add2_mem(m_SelfTestBuffers.A, m_SelfTestBuffers.B, m_SelfTestBuffers.C, kTestBufferBytes);
     for (i = 0; i < kTestBufferBytes; ++i) {
         if (m_SelfTestBuffers.A[i] != (0x1f ^ 0xf7 ^ 0x71)) {
-            printk(KERN_INFO "Failed second add");
+            debug("Failed second add\n");
             return -1;
         }
     }
@@ -161,7 +160,7 @@ static int gf_self_test(void) {
     gf_addset_mem(m_SelfTestBuffers.A, m_SelfTestBuffers.B, m_SelfTestBuffers.C, kTestBufferBytes);
     for (i = 0; i < kTestBufferBytes; ++i) {
         if (m_SelfTestBuffers.A[i] != (0xaa ^ 0x6c)) {
-            printk(KERN_INFO "Failed addset");
+            debug("Failed addset\n");
             return -1;
         }
     }
@@ -174,7 +173,7 @@ static int gf_self_test(void) {
     gf_muladd_mem(m_SelfTestBuffers.A, 0x6c, m_SelfTestBuffers.B, kTestBufferBytes);
     for (i = 0; i < kTestBufferBytes; ++i) {
         if (m_SelfTestBuffers.A[i] != (expectedMulAdd ^ 0xff)) {
-            printk(KERN_INFO "muladd failed");
+            debug("muladd failed\n");
             return -1;
         }
     }
@@ -188,7 +187,7 @@ static int gf_self_test(void) {
     gf_mul_mem(m_SelfTestBuffers.A, m_SelfTestBuffers.B, 0xa2, kTestBufferBytes);
     for (i = 0; i < kTestBufferBytes; ++i) {
         if (m_SelfTestBuffers.A[i] != expectedMul) {
-	    printk(KERN_INFO "mul failed");
+	    debug("mul failed\n");
             return -1;
         }
     }
@@ -203,7 +202,7 @@ static int gf_self_test(void) {
         return -1;
     }
 
-    printk(KERN_INFO "Self test passed\n");
+    debug("Self test passed\n");
     return 0;
 }
 
@@ -596,9 +595,9 @@ static void gf_mul_mem_init(void) {
 # ifdef GF_AVX2
         if (CpuHasAVX2) {
             kernel_fpu_begin();
-            const M256 table_lo2 = _mm256_broadcastsi128_si256(table_lo);
-            const M256 table_hi2 = _mm256_broadcastsi128_si256(table_hi);
-	    kernel_fpu_end();
+            const M256 table_lo2 = (M256)__builtin_ia32_vbroadcastsi128((__v2di)table_lo);
+            const M256 table_hi2 = (M256)__builtin_ia32_vbroadcastsi128((__v2di)table_hi);
+            kernel_fpu_end();
             *(GFContext.MM256.TABLE_LO_Y + y) = table_lo2;
             *(GFContext.MM256.TABLE_HI_Y + y) = table_hi2;
         }
@@ -664,6 +663,7 @@ int gf_init(void) {
 //------------------------------------------------------------------------------
 // Operations
 
+#ifndef GF_ARM
 //replacement for _mm_xor_si128
 inline M128 vector_xor(M128 x, M128 y){
     return (M128)((__v2du)x ^ (__v2du)y);
@@ -688,6 +688,7 @@ inline M128 vector_shuffle_epi8(M128 x, M128 y){
 inline M128 vector_set(char x){
     return __extension__ (M128)(__v16qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 }
+#endif
 
 #if defined(GF_AVX2)
 //all of these are versions of the above for AVX instructions
@@ -723,7 +724,7 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
     uint8_t * __restrict y1;
     int offset, eight, four;
 #if defined(GF_ARM)
-# if defined(GF_NEON)
+    #if defined(GF_NEON)
     // Handle multiples of 64 bytes
     if (CpuHasNeon) {
         while (bytes >= 64) {
@@ -755,7 +756,7 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
         }
     }
     else
-# endif // GF_NEON
+    # endif // GF_NEON
     {
         unsigned ii;
         uint64_t * __restrict x8 = (uint64_t *)(x16);
@@ -771,25 +772,18 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
         bytes -= (count * 8);
     }
 #else // GF_ARM
+
 # if defined(GF_AVX2)
     if (CpuHasAVX2) {
         M256 * __restrict x32 = (M256 *)(x16);
         const M256 * __restrict y32 = (const M256 *)(y16);
 
         while (bytes >= 128) {
-            M256 x0, x1, x2, x3, y0, y1, y2, y3;
-            x0 = *(x32);
-            y0 = *(y32);
-            x0 = vector_xor_256(x0, y0);
-            x1 = *(x32 + 1);
-            y1 = *(y32 + 1);
-            x1 = vector_xor_256(x1, y1);
-            x2 = *(x32 + 2);
-            y2 = *(y32 + 2);
-            x2 = vector_xor_256(x2, y2);
-            x3 = *(x32 + 3);
-            y3 = *(y32 + 3);
-            x3 = vector_xor_256(x3, y3);
+            M256 x0, x1, x2, x3;
+            x0 = vector_xor_256(*x32, *y32);
+            x1 = vector_xor_256(*(x32 + 1), *(y32 + 1));
+            x2 = vector_xor_256(*(x32 + 2), *(y32 + 2));
+            x3 = vector_xor_256(*(x32 + 3), *(y32 + 3));
 
             *(x32) = x0;
             *(x32 + 1) = x1;
@@ -813,19 +807,11 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
 # endif // GF_AVX2
     {
         while (bytes >= 64) {
-            M128 x0, y0, x1, x2, x3, y1, y2, y3;
-	    x0 = *x16;
-	    y0 = *y16;
-	    x0 = vector_xor(x0, y0);
-	    x1 = *(x16+1);
-	    y1 = *(y16+1);
-	    x1 = vector_xor(x1, y1);
-	    x2 = *(x16+2);
-	    y2 = *(y16+2);
-	    x2 = vector_xor(x2, y2);
-	    x3 = *(x16+3);
-	    y3 = *(y16+3);
-	    x3 = vector_xor(x3, y3);
+        M128 x0, x1, x2, x3;
+	    x0 = vector_xor(*x16, *y16);
+	    x1 = vector_xor(*(x16+1), *(y16+1));
+	    x2 = vector_xor(*(x16+2), *(y16+2));
+	    x3 = vector_xor(*(x16+3), *(y16+3));
 
 	    *x16 = x0;
 	    *(x16+1) = x1;
@@ -841,7 +827,7 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // x[i] = x[i] xor y[i]
-	*x16 = vector_xor(*x16, *y16);
+	    *x16 = vector_xor(*x16, *y16);
         bytes -= 16, ++x16, ++y16;
     }
 #endif
@@ -912,8 +898,9 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
         const uint64_t * __restrict y8 = (const uint64_t *)(y16);
 
         const unsigned count = (unsigned)bytes / 8;
-        for (ii = 0; ii < count; ++ii)
+        for (ii = 0; ii < count; ++ii){
             z8[ii] ^= x8[ii] ^ y8[ii];
+        }
 
         z16 = (M128 *)(z8 + count);
         x16 = (const M128 *)(x8 + count);
@@ -931,7 +918,7 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
 
         const unsigned count = bytes / 32;
         for (i = 0; i < count; ++i) {
-	    *(z32 + i) = vector_xor_256(*(z32 + i), vector_xor_256(*(x32 + i), *(y32 + i)));
+            *(z32 + i) = vector_xor_256(*(z32 + i), vector_xor_256(*(x32 + i), *(y32 + i)));
         }
 
         bytes -= count * 32;
@@ -944,7 +931,7 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // z[i] = z[i] xor x[i] xor y[i]
-	*z16 = vector_xor(*z16, vector_xor(*x16, *y16));
+        *z16 = vector_xor(*z16, vector_xor(*x16, *y16));
 
         bytes -= 16, ++x16, ++y16, ++z16;
     }
@@ -1054,7 +1041,7 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
         unsigned i;
         const unsigned count = bytes / 32;
         for (i = 0; i < count; ++i) {
-	    *(z32 + i) = vector_xor_256(*(x32 + i), *(y32 + i));
+            *(z32 + i) = vector_xor_256(*(x32 + i), *(y32 + i));
         }
 
         bytes -= count * 32;
@@ -1067,20 +1054,10 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
     {
         // Handle multiples of 64 bytes
         while (bytes >= 64) {
-            M128 x0, x1, x2, x3, y0, y1, y2, y3;
-            x0 = *x16;
-            x1 = *(x16 + 1);
-            x2 = *(x16 + 2);
-            x3 = *(x16 + 3);
-            y0 = *y16;
-            y1 = *(y16 + 1);
-            y2 = *(y16 + 2);
-            y3 = *(y16 + 3);
-
-	    *z16 = vector_xor(x0, y0);
-            *(z16 + 1) = vector_xor(x1, y1);
-            *(z16 + 2) = vector_xor(x2, y2);
-            *(z16 + 3) = vector_xor(x3, y3);
+            *z16 = vector_xor(*x16, *y16);
+            *(z16 + 1) = vector_xor(*(x16 + 1), *(y16 + 1));
+            *(z16 + 2) = vector_xor(*(x16 + 2), *(y16 + 2));
+            *(z16 + 3) = vector_xor(*(x16 + 3), *(y16 + 3));
 
             bytes -= 64, x16 += 4, y16 += 4, z16 += 4;
         }
@@ -1089,7 +1066,7 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // z[i] = x[i] xor y[i]
-	*z16 = vector_xor(*x16, *y16);
+        *z16 = vector_xor(*x16, *y16);
         bytes -= 16, ++x16, ++y16, ++z16;
     }
 #endif // GF_ARM
@@ -1190,12 +1167,12 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
             // See above comments for details
             x0 = *(x32);
             l0 = vector_and_256(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             h0 = vector_and_256(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             *(z32) = vector_xor_256(l0, h0);
 
             bytes -= 32, ++x32, ++z32;
@@ -1220,12 +1197,12 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
             // See above comments for details
             x0 = *(x16);
             l0 = vector_and(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             h0 = vector_and(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             *(z16) =  vector_xor(l0, h0);
 
             bytes -= 16, ++x16, ++z16;
@@ -1340,25 +1317,25 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             // See above comments for details
             x0 = *(x32 + i * 2);
             l0 = vector_and_256(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             z0 = *(z32 + i * 2);
             h0 = vector_and_256(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             p0 = vector_xor_256(l0, h0);
             *(z32 + i * 2) =  vector_xor_256(p0, z0);
 
             x1 = *(x32 + i * 2 + 1);
             l1 = vector_and_256(x1, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x1 = vector_srli_epi64(x1, 4);
             z1 = *(z32 + i * 2 + 1);
             h1 = vector_and_256(x1, clr_mask);
             l1 = vector_shuffle_epi8(table_lo_y, l1);
             h1 = vector_shuffle_epi8(table_hi_y, h1);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             p1 = vector_xor_256(l1, h1);
             *(z32 + i * 2 + 1) =  vector_xor_256(p1, z1);
         }
@@ -1370,12 +1347,12 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             M256 x0, l0, h0, p0, z0;
             x0 = *(x32);
             l0 = vector_and_256(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             h0 = vector_and_256(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             p0 = vector_xor_256(l0, h0);
             z0 = *(z32);
             *(z32) = vector_xor_256(p0, z0);
@@ -1406,22 +1383,22 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             l1 = vector_and(x1, clr_mask);
 
             bytes -= 32;
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x1 = vector_srli_epi64(x1, 4);
             h1 = vector_and(x1, clr_mask);
             l1 = vector_shuffle_epi8(table_lo_y, l1);
             h1 = vector_shuffle_epi8(table_hi_y, h1);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             z1 = *(z16 + 1);
 
             x0 = *(x16);
             l0 = vector_and(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             h0 = vector_and(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             z0 = *(z16);
 
             p1 = vector_xor(l1, h1);
@@ -1439,12 +1416,12 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             M128 x0, h0, l0, p0, z0;
             x0 = *(x16);
             l0 = vector_and(x0, clr_mask);
-	    kernel_fpu_begin();
+            kernel_fpu_begin();
             x0 = vector_srli_epi64(x0, 4);
             h0 = vector_and(x0, clr_mask);
             l0 = vector_shuffle_epi8(table_lo_y, l0);
             h0 = vector_shuffle_epi8(table_hi_y, h0);
-	    kernel_fpu_end();
+            kernel_fpu_end();
             p0 = vector_xor(l0, h0);
             z0 = *(z16);
             *(z16) = vector_xor(p0, z0);

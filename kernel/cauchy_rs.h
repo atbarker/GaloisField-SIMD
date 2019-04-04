@@ -37,6 +37,23 @@
 #include <linux/types.h>
 #include <asm/fpu/api.h>
 
+//#define DEBUG
+
+//fun with print statements
+#if defined(DEBUG)
+    #if defined(__KERNEL__)
+        #define debug(fmt, ...)                                      \
+            ({                                                       \
+                printk(KERN_DEBUG "Cauchy-debug: [%s:%d] " fmt "\n", \
+                    __func__, __LINE__,                              \
+                    ##__VA_ARGS__);                                  \
+            })
+    #else
+        #define debug(...) do { fprintf(stderr, __VA_ARGS__ ); } while (false)
+    #endif
+#else
+    #define debug(...) do { } while (false)
+#endif
 
 //typedefs from GCC intrinsic file, helps to define vectors
 typedef long long __m128i __attribute__ ((__vector_size__ (16), __may_alias__));
