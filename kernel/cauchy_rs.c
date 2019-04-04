@@ -1,3 +1,8 @@
+/* 
+   Austen Barker (2019)
+   Based off CM256 by Christopher Taylor.
+*/
+
 /*
 	Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
 
