@@ -55,6 +55,12 @@
     #define debug(...) do { } while (false)
 #endif
 
+#if defined(__KERNEL__)
+    #define cauchy_malloc(arg) kmalloc(arg, GFP_KERNEL)
+#else
+    #define cauchy_malloc(arg) malloc(arg)
+#endif
+
 //typedefs from GCC intrinsic file, helps to define vectors
 typedef long long __m128i __attribute__ ((__vector_size__ (16), __may_alias__));
 typedef unsigned long long __v2du __attribute__ ((__vector_size__ (16)));

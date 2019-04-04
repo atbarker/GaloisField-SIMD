@@ -1981,7 +1981,7 @@ void Decode(CauchyDecoder *decoder) {
     matrix = stackMatrix;
     requiredSpace = N * N;
     if (requiredSpace > StackAllocSize) {
-        dynamicMatrix = kmalloc(requiredSpace, GFP_KERNEL);
+        dynamicMatrix = cauchy_malloc(requiredSpace);
         matrix = dynamicMatrix;
     }
 
@@ -2047,7 +2047,7 @@ int cauchy_rs_decode(
     cauchy_encoder_params params, // Encoder params
     cauchy_block* blocks)         // Array of 'originalCount' blocks as described above
 {
-    CauchyDecoder *state = kmalloc(sizeof(CauchyDecoder), GFP_KERNEL);
+    CauchyDecoder *state = cauchy_malloc(sizeof(CauchyDecoder));
 
     if (params.OriginalCount <= 0 || params.RecoveryCount <= 0 || params.BlockBytes <= 0) {
         return -1;
