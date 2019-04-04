@@ -29,7 +29,7 @@
 #ifndef CAUCHY_RS_H
 #define CAUCHY_RS_H
 
-/** \page GF256 GF(256) Math Module
+/** \page GF GF(256) Math Module
 
     This module provides efficient implementations of bulk
     GF(2^^8) math operations over memory buffers.
@@ -64,60 +64,60 @@ typedef char __v32qi __attribute__ ((__vector_size__ (32)));
 // Platform/Architecture
 
 #if defined(ANDROID) || defined(IOS) || defined(LINUX_ARM)
-    #define GF256_TARGET_MOBILE
+    #define GF_TARGET_MOBILE
 #endif // ANDROID
 
 //this will likely not work
 #if defined(__AVX2__)
-    #define GF256_TRY_AVX2 /* 256-bit */
+    #define GF_TRY_AVX2 /* 256-bit */
     #include <immintrin.h>
     #define M256 __m256i
-    #define GF256_ALIGN_BYTES 32
+    #define GF_ALIGN_BYTES 32
 #else // __AVX2__
-    #define GF256_ALIGN_BYTES 16
+    #define GF_ALIGN_BYTES 16
 #endif // __AVX2__
 
 //if we are not using a mobile version
-#if !defined(GF256_TARGET_MOBILE)
+#if !defined(GF_TARGET_MOBILE)
     //TODO: get rid of this in favor of inline assembly
     // Note: MSVC currently only supports SSSE3 but not AVX2
-#endif // GF256_TARGET_MOBILE
+#endif // GF_TARGET_MOBILE
 
 #if defined(HAVE_ARM_NEON_H)
     #include <arm_neon.h>
 #endif // HAVE_ARM_NEON_H
 
-#if defined(GF256_TARGET_MOBILE)
+#if defined(GF_TARGET_MOBILE)
 
-    #define ALIGNED_ACCESSES /* Inputs must be aligned to GF256_ALIGN_BYTES */
+    #define ALIGNED_ACCESSES /* Inputs must be aligned to GF_ALIGN_BYTES */
 
 # if defined(HAVE_ARM_NEON_H)
     // Compiler-specific 128-bit SIMD register keyword
     #define M128 uint8x16_t
-    #define GF256_TRY_NEON
+    #define GF_TRY_NEON
 #else
     #define M128 uint64_t
 # endif
 
-#else // GF256_TARGET_MOBILE
+#else // GF_TARGET_MOBILE
 
     // Compiler-specific 128-bit SIMD register keyword
     #define M128 __m128i
 
-#endif // GF256_TARGET_MOBILE
+#endif // GF_TARGET_MOBILE
 
 // Compiler-specific force inline keyword
 #define FORCE_INLINE inline __attribute__((always_inline))
 
 // Compiler-specific alignment keyword
 // Note: Alignment only matters for ARM NEON where it should be 16
-#define ALIGNED __attribute__((aligned(GF256_ALIGN_BYTES)))
+#define ALIGNED __attribute__((aligned(GF_ALIGN_BYTES)))
 
 //------------------------------------------------------------------------------
 // Portability
 
 /// Swap two memory buffers in-place
-void gf256_memswap(void * __restrict vx, void * __restrict vy, int bytes);
+void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
 
 
 //------------------------------------------------------------------------------
@@ -132,31 +132,31 @@ typedef struct{
         ALIGNED M128 TABLE_LO_Y[256];
         ALIGNED M128 TABLE_HI_Y[256];
     } MM128;
-#ifdef GF256_TRY_AVX2
+#ifdef GF_TRY_AVX2
     struct
     {
         ALIGNED M256 TABLE_LO_Y[256];
         ALIGNED M256 TABLE_HI_Y[256];
     } MM256;
-#endif // GF256_TRY_AVX2
+#endif // GF_TRY_AVX2
 
     /// Mul/Div/Inv/Sqr tables
-    uint8_t GF256_MUL_TABLE[256 * 256];
-    uint8_t GF256_DIV_TABLE[256 * 256];
-    uint8_t GF256_INV_TABLE[256];
-    uint8_t GF256_SQR_TABLE[256];
+    uint8_t GF_MUL_TABLE[256 * 256];
+    uint8_t GF_DIV_TABLE[256 * 256];
+    uint8_t GF_INV_TABLE[256];
+    uint8_t GF_SQR_TABLE[256];
 
     /// Log/Exp tables
-    uint16_t GF256_LOG_TABLE[256];
-    uint8_t GF256_EXP_TABLE[512 * 2 + 1];
+    uint16_t GF_LOG_TABLE[256];
+    uint8_t GF_EXP_TABLE[512 * 2 + 1];
 
     /// Polynomial used
     unsigned Polynomial;
-}gf256_ctx;
+}gf_ctx;
 
 //global context
 //TODO get rid of the global context
-extern gf256_ctx GFContext;
+extern gf_ctx GFContext;
 
 
 //------------------------------------------------------------------------------
@@ -167,55 +167,55 @@ extern gf256_ctx GFContext;
     
     Thread-safety / Usage Notes:
     
-    It is perfectly safe and encouraged to use a gf256_ctx object from multiple
-    threads.  The gf256_init() is relatively expensive and should only be done
+    It is perfectly safe and encouraged to use a gf_ctx object from multiple
+    threads.  The gf_init() is relatively expensive and should only be done
     once, though it will take less than a millisecond.
     
-    The gf256_ctx object must be aligned to 16 byte boundary.
+    The gf_ctx object must be aligned to 16 byte boundary.
     Simply tag the object with ALIGNED to achieve this.
     
     Example:
-       static ALIGNED gf256_ctx TheGF256Context;
-       gf256_init(&TheGF256Context, 0);
+       static ALIGNED gf_ctx TheGFContext;
+       gf_init(&TheGFContext, 0);
     
     Returns 0 on success and other values on failure.
 */
-int gf256_init(void);
+int gf_init(void);
 
 
 //------------------------------------------------------------------------------
 // Math Operations
 
 /// return x + y
-static FORCE_INLINE uint8_t gf256_add(uint8_t x, uint8_t y)
+static FORCE_INLINE uint8_t gf_add(uint8_t x, uint8_t y)
 {
     return (uint8_t)(x ^ y);
 }
 
 /// return x * y
 /// For repeated multiplication by a constant, it is faster to put the constant in y.
-static FORCE_INLINE uint8_t gf256_mul(uint8_t x, uint8_t y)
+static FORCE_INLINE uint8_t gf_mul(uint8_t x, uint8_t y)
 {
-    return GFContext.GF256_MUL_TABLE[((unsigned)y << 8) + x];
+    return GFContext.GF_MUL_TABLE[((unsigned)y << 8) + x];
 }
 
 /// return x / y
 /// Memory-access optimized for constant divisors in y.
-static FORCE_INLINE uint8_t gf256_div(uint8_t x, uint8_t y)
+static FORCE_INLINE uint8_t gf_div(uint8_t x, uint8_t y)
 {
-    return GFContext.GF256_DIV_TABLE[((unsigned)y << 8) + x];
+    return GFContext.GF_DIV_TABLE[((unsigned)y << 8) + x];
 }
 
 /// return 1 / x
-static FORCE_INLINE uint8_t gf256_inv(uint8_t x)
+static FORCE_INLINE uint8_t gf_inv(uint8_t x)
 {
-    return GFContext.GF256_INV_TABLE[x];
+    return GFContext.GF_INV_TABLE[x];
 }
 
 /// return x * x
-static FORCE_INLINE uint8_t gf256_sqr(uint8_t x)
+static FORCE_INLINE uint8_t gf_sqr(uint8_t x)
 {
-    return GFContext.GF256_SQR_TABLE[x];
+    return GFContext.GF_SQR_TABLE[x];
 }
 
 
@@ -223,25 +223,25 @@ static FORCE_INLINE uint8_t gf256_sqr(uint8_t x)
 // Bulk Memory Math Operations
 
 /// Performs "x[] += y[]" bulk memory XOR operation
-void gf256_add_mem(void * __restrict vx, const void * __restrict vy, int bytes);
+void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes);
 
 /// Performs "z[] += x[] + y[]" bulk memory operation
-void gf256_add2_mem(void * __restrict vz, const void * __restrict vx, const void * __restrict vy, int bytes);
+void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * __restrict vy, int bytes);
 
 /// Performs "z[] = x[] + y[]" bulk memory operation
-void gf256_addset_mem(void * __restrict vz, const void * __restrict vx, const void * __restrict vy, int bytes);
+void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void * __restrict vy, int bytes);
 
 /// Performs "z[] = x[] * y" bulk memory operation
-void gf256_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int bytes);
+void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int bytes);
 
 /// Performs "z[] += x[] * y" bulk memory operation
-void gf256_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, int bytes);
+void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, int bytes);
 
 /// Performs "x[] /= y" bulk memory operation
-static FORCE_INLINE void gf256_div_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int bytes)
+static FORCE_INLINE void gf_div_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int bytes)
 {
     // Multiply by inverse
-    gf256_mul_mem(vz, vx, y == 1 ? (uint8_t)1 : GFContext.GF256_INV_TABLE[y], bytes);
+    gf_mul_mem(vz, vx, y == 1 ? (uint8_t)1 : GFContext.GF_INV_TABLE[y], bytes);
 }
 
 
@@ -249,7 +249,7 @@ static FORCE_INLINE void gf256_div_mem(void * __restrict vz, const void * __rest
 // Misc Operations
 
 /// Swap two memory buffers in-place
-void gf256_memswap(void * __restrict vx, void * __restrict vy, int bytes);
+void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
 
 /*
  * Verify binary compatibility with the API on startup.
