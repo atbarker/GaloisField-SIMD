@@ -585,8 +585,10 @@ static void gf256_mul_mem_init(void) {
             GF256Ctx.MM128.TABLE_HI_Y[y] = vld1q_u8(hi);
         }
 #elif !defined(GF256_TARGET_MOBILE)
+	//equivalent of running _mm_loadu_si128((GF256_M128*)lo);
 	table_lo = *(GF256_M128*)lo;
 	table_hi = *(GF256_M128*)hi;
+	//similar intrinsic equivalent
         *(GF256Ctx.MM128.TABLE_LO_Y + y) = table_lo;
 	*(GF256Ctx.MM128.TABLE_HI_Y + y) = table_hi;
 # ifdef GF256_TRY_AVX2
