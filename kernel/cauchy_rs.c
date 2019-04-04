@@ -47,7 +47,7 @@
 // Workaround for ARMv7 that doesn't provide vqtbl1_*
 // This comes from linux-raid (https://www.spinics.net/lists/raid/msg58403.html)
 //
-#ifdef GF_TRY_NEON
+#ifdef GF_NEON
 #if __ARM_ARCH <= 7 && !defined(__aarch64__)
 static FORCE_INLINE uint8x16_t vqtbl1q_u8(uint8x16_t a, uint8x16_t b) {
     union {
@@ -65,6 +65,7 @@ static FORCE_INLINE uint8x16_t vqtbl1q_u8(uint8x16_t a, uint8x16_t b) {
 // Self-Test
 //
 // This is executed during initialization to make sure the library is working
+// TODO, strip this out and make optional
 
 typedef struct {
     ALIGNED uint8_t A[kTestBufferAllocated];
@@ -213,11 +214,12 @@ static int gf_self_test(void) {
 // Feature checks stolen shamelessly from
 // https://github.com/jedisct1/libsodium/blob/master/src/libsodium/sodium/runtime.c
 
+//TODO clean this up, won't work in the kernel
 #if defined(HAVE_ANDROID_GETCPUFEATURES)
 #include <cpu-features.h>
 #endif
 
-#if defined(GF_TRY_NEON)
+#if defined(GF_NEON)
 # if defined(IOS) && defined(__ARM_NEON__)
 // Requires iPhone 5S or newer
 static const bool CpuHasNeon = true;
@@ -233,14 +235,9 @@ static bool CpuHasNeon64 = false;   // And we don't have ASIMD
 # endif
 #endif
 
-#if !defined(GF_TARGET_MOBILE)
+#if !defined(GF_ARM)
 
-#ifdef _MSC_VER
-    #include <intrin.h> // __cpuid
-    #pragma warning(disable: 4752) // found Intel(R) Advanced Vector Extensions; consider using /arch:AVX
-#endif
-
-#ifdef GF_TRY_AVX2
+#ifdef GF_AVX2
 static bool CpuHasAVX2 = false;
 #endif
 static bool CpuHasSSSE3 = false;
@@ -304,11 +301,11 @@ static void checkLinuxARMNeonCapabilities( bool& cpuHasNeon ) {
     }
 }
 #endif
-#endif // defined(GF_TARGET_MOBILE)
+#endif // defined(GF_ARM)
 
 static void gf_architecture_init(void) {
     unsigned int cpu_info[4];
-#if defined(GF_TRY_NEON)
+#if defined(GF_NEON)
 
     // Check for NEON support on Android platform
 #if defined(HAVE_ANDROID_GETCPUFEATURES)
@@ -331,17 +328,17 @@ static void gf_architecture_init(void) {
     checkLinuxARMNeonCapabilities(CpuHasNeon);
 #endif
 
-#endif //GF_TRY_NEON
+#endif //GF_NEON
 
-#if !defined(GF_TARGET_MOBILE)
+#if !defined(GF_ARM)
 
     _cpuid(cpu_info, 1);
     CpuHasSSSE3 = ((cpu_info[2] & CPUID_ECX_SSSE3) != 0);
 
-#if defined(GF_TRY_AVX2)
+#if defined(GF_AVX2)
     _cpuid(cpu_info, 7);
     CpuHasAVX2 = ((cpu_info[1] & CPUID_EBX_AVX2) != 0);
-#endif // GF_TRY_AVX2
+#endif // GF_AVX2
 
     // When AVX2 and SSSE3 are unavailable, Siamese takes 4x longer to decode
     // and 2.6x longer to encode.  Encoding requires a lot more simple XOR ops
@@ -349,7 +346,7 @@ static void gf_architecture_init(void) {
     // average loss rates are low, but when needed it requires a lot more
     // GF multiplies requiring table lookups which is slower.
 
-#endif // GF_TARGET_MOBILE
+#endif // GF_ARM
 }
 
 
@@ -584,19 +581,19 @@ static void gf_mul_mem_init(void) {
             hi[x] = gf_mul(x << 4, (uint8_t)( y ));
         }
 
-#if defined(GF_TRY_NEON)
+#if defined(GF_NEON)
         if (CpuHasNeon) {
             GFContext.MM128.TABLE_LO_Y[y] = vld1q_u8(lo);
             GFContext.MM128.TABLE_HI_Y[y] = vld1q_u8(hi);
         }
-#elif !defined(GF_TARGET_MOBILE)
+#elif !defined(GF_ARM)
 	//equivalent of running _mm_loadu_si128((M128*)lo);
 	table_lo = *(M128*)lo;
 	table_hi = *(M128*)hi;
 	//similar intrinsic equivalent for store
         *(GFContext.MM128.TABLE_LO_Y + y) = table_lo;
 	*(GFContext.MM128.TABLE_HI_Y + y) = table_hi;
-# ifdef GF_TRY_AVX2
+# ifdef GF_AVX2
         if (CpuHasAVX2) {
             kernel_fpu_begin();
             const M256 table_lo2 = _mm256_broadcastsi128_si256(table_lo);
@@ -605,8 +602,8 @@ static void gf_mul_mem_init(void) {
             *(GFContext.MM256.TABLE_LO_Y + y) = table_lo2;
             *(GFContext.MM256.TABLE_HI_Y + y) = table_hi2;
         }
-# endif // GF_TRY_AVX2
-#endif // GF_TARGET_MOBILE
+# endif // GF_AVX2
+#endif // GF_ARM
     }
 }
 
@@ -692,7 +689,7 @@ inline M128 vector_set(char x){
     return __extension__ (M128)(__v16qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 }
 
-#if defined(GF_TRY_AVX2)
+#if defined(GF_AVX2)
 //all of these are versions of the above for AVX instructions
 inline M256 vector_xor_256(M256 x, M256 y){
     return (M256) ((__v4du)x ^ (__v4du)y);
@@ -725,8 +722,8 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
     int8_t * __restrict x1;
     uint8_t * __restrict y1;
     int offset, eight, four;
-#if defined(GF_TARGET_MOBILE)
-# if defined(GF_TRY_NEON)
+#if defined(GF_ARM)
+# if defined(GF_NEON)
     // Handle multiples of 64 bytes
     if (CpuHasNeon) {
         while (bytes >= 64) {
@@ -758,7 +755,7 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
         }
     }
     else
-# endif // GF_TRY_NEON
+# endif // GF_NEON
     {
         unsigned ii;
         uint64_t * __restrict x8 = (uint64_t *)(x16);
@@ -773,8 +770,8 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
 
         bytes -= (count * 8);
     }
-#else // GF_TARGET_MOBILE
-# if defined(GF_TRY_AVX2)
+#else // GF_ARM
+# if defined(GF_AVX2)
     if (CpuHasAVX2) {
         M256 * __restrict x32 = (M256 *)(x16);
         const M256 * __restrict y32 = (const M256 *)(y16);
@@ -813,7 +810,7 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
         y16 = (const M128 *)(y32);
     }
     else
-# endif // GF_TRY_AVX2
+# endif // GF_AVX2
     {
         while (bytes >= 64) {
             M128 x0, y0, x1, x2, x3, y1, y2, y3;
@@ -838,9 +835,9 @@ void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
             bytes -= 64, x16 += 4, y16 += 4;
         }
     }
-#endif // GF_TARGET_MOBILE
+#endif // GF_ARM
 
-#if !defined(GF_TARGET_MOBILE)
+#if !defined(GF_ARM)
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // x[i] = x[i] xor y[i]
@@ -889,8 +886,8 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
     uint8_t * __restrict y1;
     int eight, four, offset;
 
-#if defined(GF_TARGET_MOBILE)
-# if defined(GF_TRY_NEON)
+#if defined(GF_ARM)
+# if defined(GF_NEON)
     // Handle multiples of 64 bytes
     if (CpuHasNeon) {
         // Handle multiples of 16 bytes
@@ -907,7 +904,7 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
         }
     }
     else
-# endif // GF_TRY_NEON
+# endif // GF_NEON
     {
 	unsigned ii;
         uint64_t * __restrict z8 = (uint64_t *)(z16);
@@ -924,8 +921,8 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
 
         bytes -= (count * 8);
     }
-#else // GF_TARGET_MOBILE
-# if defined(GF_TRY_AVX2)
+#else // GF_ARM
+# if defined(GF_AVX2)
     if (CpuHasAVX2) {
 	unsigned i;
         M256 * __restrict z32 = (M256 *)(z16);
@@ -942,7 +939,7 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
         x16 = (const M128 *)(x32 + count);
         y16 = (const M128 *)(y32 + count);
     }
-# endif // GF_TRY_AVX2
+# endif // GF_AVX2
 
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
@@ -951,7 +948,7 @@ void gf_add2_mem(void * __restrict vz, const void * __restrict vx, const void * 
 
         bytes -= 16, ++x16, ++y16, ++z16;
     }
-#endif // GF_TARGET_MOBILE
+#endif // GF_ARM
 
     z1 = (uint8_t *)(z16);
     x1 = (uint8_t *)(x16);
@@ -996,8 +993,8 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
     uint8_t * __restrict y1;
     int eight, four, offset;
 
-#if defined(GF_TARGET_MOBILE)
-# if defined(GF_TRY_NEON)
+#if defined(GF_ARM)
+# if defined(GF_NEON)
     // Handle multiples of 64 bytes
     if (CpuHasNeon) {
         while (bytes >= 64) {
@@ -1030,7 +1027,7 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
         }
     }
     else
-# endif // GF_TRY_NEON
+# endif // GF_NEON
     {
         unsigned ii;
         uint64_t * __restrict z8 = (uint64_t *)(z16);
@@ -1048,8 +1045,8 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
 
         bytes -= (count * 8);
     }
-#else // GF_TARGET_MOBILE
-# if defined(GF_TRY_AVX2)
+#else // GF_ARM
+# if defined(GF_AVX2)
     if (CpuHasAVX2) {
         M256 * __restrict z32 = (M256 *)(z16);
         const M256 * __restrict x32 = (const M256 *)(x16);
@@ -1066,7 +1063,7 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
         y16 = (const M128 *)(y32 + count);
     }
     else
-# endif // GF_TRY_AVX2
+# endif // GF_AVX2
     {
         // Handle multiples of 64 bytes
         while (bytes >= 64) {
@@ -1095,7 +1092,7 @@ void gf_addset_mem(void * __restrict vz, const void * __restrict vx, const void 
 	*z16 = vector_xor(*x16, *y16);
         bytes -= 16, ++x16, ++y16, ++z16;
     }
-#endif // GF_TARGET_MOBILE
+#endif // GF_ARM
 
     z1 = (uint8_t *)(z16);
     x1 = (uint8_t *)(x16);
@@ -1149,8 +1146,8 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
     }
 
 
-#if defined(GF_TARGET_MOBILE)
-#if defined(GF_TRY_NEON)
+#if defined(GF_ARM)
+#if defined(GF_NEON)
     if (bytes >= 16 && CpuHasNeon) {
         // Partial product tables; see above
         const M128 table_lo_y = vld1q_u8((uint8_t*)(GFContext.MM128.TABLE_LO_Y + y));
@@ -1175,7 +1172,7 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
     }
 #endif
 #else
-# if defined(GF_TRY_AVX2)
+# if defined(GF_AVX2)
     if (bytes >= 32 && CpuHasAVX2) {
         M256 table_lo_y, table_hi_y, clr_mask;
         // Partial product tables; see above
@@ -1207,7 +1204,7 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
         z16 = (M128 *)(z32);
         x16 = (const M128 *)(x32);
     }
-# endif // GF_TRY_AVX2
+# endif // GF_AVX2
     if (bytes >= 16 && CpuHasSSSE3) {
         M128 table_lo_y, table_hi_y, clr_mask;
         // Partial product tables; see above
@@ -1293,8 +1290,8 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
         return;
     }
 
-#if defined(GF_TARGET_MOBILE)
-#if defined(GF_TRY_NEON)
+#if defined(GF_ARM)
+#if defined(GF_NEON)
     if (bytes >= 16 && CpuHasNeon) {
         // Partial product tables; see above
         const M128 table_lo_y = vld1q_u8((uint8_t*)(GFContext.MM128.TABLE_LO_Y + y));
@@ -1321,8 +1318,8 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
         } while (bytes >= 16);
     }
 #endif
-#else // GF_TARGET_MOBILE
-# if defined(GF_TRY_AVX2)
+#else // GF_ARM
+# if defined(GF_AVX2)
     if (bytes >= 32 && CpuHasAVX2) {
         // Partial product tables; see above
         M256 table_lo_y, table_hi_y, clr_mask;
@@ -1391,7 +1388,7 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
         z16 = (M128 *)(z32);
         x16 = (const M128 *)(x32);
     }
-# endif // GF_TRY_AVX2
+# endif // GF_AVX2
     if (bytes >= 16 && CpuHasSSSE3) {
         // Partial product tables; see above
         M128 table_lo_y, table_hi_y, clr_mask;
@@ -1454,7 +1451,7 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             bytes -= 16, ++x16, ++z16;
         }
     }
-#endif // GF_TARGET_MOBILE
+#endif // GF_ARM
 
     z1 = (uint8_t*)(z16);
     x1 = (uint8_t*)(x16);
@@ -1504,7 +1501,7 @@ void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes) {
     uint8_t * __restrict x1;
     uint8_t * __restrict y1;
     uint8_t temp2;
-#if defined(GF_TARGET_MOBILE)
+#if defined(GF_ARM)
     uint64_t * __restrict x16 = (uint64_t *)(vx);
     uint64_t * __restrict y16 = (uint64_t *)(vy);
     unsigned ii;
@@ -1616,7 +1613,7 @@ void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes) {
 //-----------------------------------------------------------------------------
 // Initialization
 
-int cm256_init(void){
+int cauchy_init(void){
     // Return error code from GF(256) init if required
     return gf_init();
 }
@@ -1666,9 +1663,9 @@ static FORCE_INLINE unsigned char GetMatrixElement(unsigned char x_i, unsigned c
 // Encoding
 
 void cauchy_rs_encode_block(
-    cm256_encoder_params params, // Encoder parameters
-    cm256_block* originals,      // Array of pointers to original blocks
-    int recoveryBlockIndex,      // Return value from cm256_get_recovery_block_index()
+    cauchy_encoder_params params, // Encoder parameters
+    cauchy_block* originals,      // Array of pointers to original blocks
+    int recoveryBlockIndex,      // Return value from cauchy_get_recovery_block_index()
     void* recoveryBlock)         // Output recovery block
 {   
     uint8_t x_0, x_i, y_0, y_j, matrixElement;
@@ -1721,8 +1718,8 @@ void cauchy_rs_encode_block(
 }
 
 int cauchy_rs_encode(
-    cm256_encoder_params params, // Encoder params
-    cm256_block* originals,      // Array of pointers to original blocks
+    cauchy_encoder_params params, // Encoder params
+    cauchy_block* originals,      // Array of pointers to original blocks
     void* recoveryBlocks)        // Output recovery blocks end-to-end
 {
     uint8_t* recoveryBlock;
@@ -1754,14 +1751,14 @@ int cauchy_rs_encode(
 
 typedef struct {
     // Encode parameters
-    cm256_encoder_params Params;
+    cauchy_encoder_params Params;
 
     // Recovery blocks
-    cm256_block* Recovery[256];
+    cauchy_block* Recovery[256];
     int RecoveryCount;
 
     // Original blocks
-    cm256_block* Original[256];
+    cauchy_block* Original[256];
     int OriginalCount;
 
     // Row indices that were erased
@@ -1776,9 +1773,9 @@ typedef struct {
     // Generate the LU decomposition of the matrix
 }CauchyDecoder;
 
-int Initialize(CauchyDecoder *decoder, cm256_encoder_params params, cm256_block* blocks) {
+int Initialize(CauchyDecoder *decoder, cauchy_encoder_params params, cauchy_block* blocks) {
     int ii, row, indexCount;
-    cm256_block* block = blocks;
+    cauchy_block* block = blocks;
     decoder->Params = params;
 
     decoder->OriginalCount = 0;
@@ -2056,8 +2053,8 @@ void Decode(CauchyDecoder *decoder) {
 }
 
 int cauchy_rs_decode(
-    cm256_encoder_params params, // Encoder params
-    cm256_block* blocks)         // Array of 'originalCount' blocks as described above
+    cauchy_encoder_params params, // Encoder params
+    cauchy_block* blocks)         // Array of 'originalCount' blocks as described above
 {
     CauchyDecoder *state = kmalloc(sizeof(CauchyDecoder), GFP_KERNEL);
 

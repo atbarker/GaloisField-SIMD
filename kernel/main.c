@@ -17,16 +17,16 @@ MODULE_AUTHOR("AUSTEN BARKER");
 
 int ExampleFileUsage(void)
 {   
-    cm256_encoder_params params;
+    cauchy_encoder_params params;
     static const int OriginalFileBytes = ORIGINAL_COUNT * BLOCK_BYTES;
     uint8_t* originalFileData; 
     uint8_t* filedatacopy;
     uint8_t* recoveryBlocks;
-    cm256_block *blocks = kmalloc(sizeof(cm256_block) * 256, GFP_KERNEL);
+    cauchy_block *blocks = kmalloc(sizeof(cauchy_block) * 256, GFP_KERNEL);
     int i, ret;
     struct timespec timespec1, timespec2;
 
-    if (cm256_init())
+    if (cauchy_init())
     {
         printk(KERN_INFO "Initialization messed up\n");
         return 1;
@@ -74,16 +74,16 @@ int ExampleFileUsage(void)
     // Initialize the indices
     for (i = 0; i < params.OriginalCount; ++i)
     {
-        blocks[i].Index = cm256_get_original_block_index(params, i);
+        blocks[i].Index = cauchy_get_original_block_index(params, i);
     }
 
     //// Simulate loss of data, subsituting a recovery block in its place ////
     blocks[0].Block = &recoveryBlocks[0]; // First recovery block
-    blocks[0].Index = cm256_get_recovery_block_index(params, 0); // First recovery block index
+    blocks[0].Index = cauchy_get_recovery_block_index(params, 0); // First recovery block index
     //// Simulate loss of data, subsituting a recovery block in its place ////
     
     blocks[1].Block = &recoveryBlocks[4096];
-    blocks[1].Index = cm256_get_recovery_block_index(params, 1);
+    blocks[1].Index = cauchy_get_recovery_block_index(params, 1);
 
     getnstimeofday(&timespec1);    
     ret = cauchy_rs_decode(params, blocks);

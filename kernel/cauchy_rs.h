@@ -1,3 +1,7 @@
+/* 
+   Austen Barker (2019)
+   Based off CM256 by Christopher Taylor.
+*/
 /*
 	Copyright (c) 2015 Christopher A. Taylor.  All rights reserved.
 
@@ -29,92 +33,51 @@
 #ifndef CAUCHY_RS_H
 #define CAUCHY_RS_H
 
-/** \page GF GF(256) Math Module
-
-    This module provides efficient implementations of bulk
-    GF(2^^8) math operations over memory buffers.
-
-    Addition is done over the base field in GF(2) meaning
-    that addition is XOR between memory buffers.
-
-    Multiplication is performed using table lookups via
-    SIMD instructions.  This is somewhat slower than XOR,
-    but fast enough to not become a major bottleneck when
-    used sparingly.
-*/
-
 #include <linux/string.h>
 #include <linux/types.h>
 #include <asm/fpu/api.h>
 
 
-//typedefs from intrinsic file, helps to define vectors
+//typedefs from GCC intrinsic file, helps to define vectors
 typedef long long __m128i __attribute__ ((__vector_size__ (16), __may_alias__));
 typedef unsigned long long __v2du __attribute__ ((__vector_size__ (16)));
 typedef long long __v2di __attribute__ ((__vector_size__ (16)));
 typedef char __v16qi __attribute__ ((__vector_size__ (16)));
 
-//AVX typedefs
+//AVX typedefs, 256 bit parallel to the above typedefs 
 typedef long long __m256i __attribute__ ((__vector_size__ (32), __may_alias__));
 typedef unsigned long long __v4du __attribute__ ((__vector_size__ (32)));
 typedef long long __v4di __attribute__ ((__vector_size__ (32)));
 typedef char __v32qi __attribute__ ((__vector_size__ (32)));
 
-//------------------------------------------------------------------------------
-// Platform/Architecture
-
-#if defined(ANDROID) || defined(IOS) || defined(LINUX_ARM)
-    #define GF_TARGET_MOBILE
-#endif // ANDROID
-
-//this will likely not work
+//check for AVX extension
 #if defined(__AVX2__)
-    #define GF_TRY_AVX2 /* 256-bit */
-    #include <immintrin.h>
+    #define GF_AVX2 /* 256-bit */
     #define M256 __m256i
     #define GF_ALIGN_BYTES 32
-#else // __AVX2__
+#else //if we don't have AVX2 then align to 16 bytes
     #define GF_ALIGN_BYTES 16
-#endif // __AVX2__
+#endif
 
-//if we are not using a mobile version
-#if !defined(GF_TARGET_MOBILE)
-    //TODO: get rid of this in favor of inline assembly
-    // Note: MSVC currently only supports SSSE3 but not AVX2
-#endif // GF_TARGET_MOBILE
-
-#if defined(HAVE_ARM_NEON_H)
-    #include <arm_neon.h>
-#endif // HAVE_ARM_NEON_H
-
-#if defined(GF_TARGET_MOBILE)
-
-    #define ALIGNED_ACCESSES /* Inputs must be aligned to GF_ALIGN_BYTES */
-
-# if defined(HAVE_ARM_NEON_H)
-    // Compiler-specific 128-bit SIMD register keyword
-    #define M128 uint8x16_t
-    #define GF_TRY_NEON
-#else
-    #define M128 uint64_t
-# endif
-
-#else // GF_TARGET_MOBILE
-
-    // Compiler-specific 128-bit SIMD register keyword
+#if defined(ANDROID) || defined(IOS) || defined(LINUX_ARM)
+    #define GF_ARM //we are on ARM
+    #define ALIGNED_ACCESSES //Inputs must be aligned to GF_ALIGN_BYTES
+    #if defined(HAVE_ARM_NEON_H)
+        #include <arm_neon.h>
+        #define M128 uint8x16_t
+        #define GF_NEON
+    #else
+        #define M128 uint64_t
+    #endif
+#else //if we don't have ARM or then our 128 bit vector is the __m128i type 
     #define M128 __m128i
-
-#endif // GF_TARGET_MOBILE
+#endif
 
 // Compiler-specific force inline keyword
 #define FORCE_INLINE inline __attribute__((always_inline))
 
-// Compiler-specific alignment keyword
-// Note: Alignment only matters for ARM NEON where it should be 16
+// Compiler-specific alignment keyword, only matters on ARM
 #define ALIGNED __attribute__((aligned(GF_ALIGN_BYTES)))
-
-//------------------------------------------------------------------------------
-// Portability
 
 /// Swap two memory buffers in-place
 void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
@@ -125,66 +88,45 @@ void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
 
 /// The context object stores tables required to perform library calculations
 typedef struct{
-    /// We require memory to be aligned since the SIMD instructions benefit from
-    /// or require aligned accesses to the table data.
     struct
     {
         ALIGNED M128 TABLE_LO_Y[256];
         ALIGNED M128 TABLE_HI_Y[256];
     } MM128;
-#ifdef GF_TRY_AVX2
+#ifdef GF_AVX2
     struct
     {
         ALIGNED M256 TABLE_LO_Y[256];
         ALIGNED M256 TABLE_HI_Y[256];
     } MM256;
-#endif // GF_TRY_AVX2
+#endif
 
-    /// Mul/Div/Inv/Sqr tables
+    // Mul/Div/Inv/Sqr tables
     uint8_t GF_MUL_TABLE[256 * 256];
     uint8_t GF_DIV_TABLE[256 * 256];
     uint8_t GF_INV_TABLE[256];
     uint8_t GF_SQR_TABLE[256];
 
-    /// Log/Exp tables
+    // Log/Exp tables
     uint16_t GF_LOG_TABLE[256];
     uint8_t GF_EXP_TABLE[512 * 2 + 1];
 
-    /// Polynomial used
+    // Polynomial used
     unsigned Polynomial;
 }gf_ctx;
 
 //global context
-//TODO get rid of the global context
+//TODO get rid of the global context, should be generated and passed into functions
 extern gf_ctx GFContext;
-
-
-//------------------------------------------------------------------------------
-// Initialization
 
 /**
     Initialize a context, filling in the tables.
-    
-    Thread-safety / Usage Notes:
-    
-    It is perfectly safe and encouraged to use a gf_ctx object from multiple
-    threads.  The gf_init() is relatively expensive and should only be done
-    once, though it will take less than a millisecond.
-    
     The gf_ctx object must be aligned to 16 byte boundary.
-    Simply tag the object with ALIGNED to achieve this.
-    
     Example:
        static ALIGNED gf_ctx TheGFContext;
-       gf_init(&TheGFContext, 0);
-    
-    Returns 0 on success and other values on failure.
+       gf_init(&TheGFContext, 0);  
 */
 int gf_init(void);
-
-
-//------------------------------------------------------------------------------
-// Math Operations
 
 /// return x + y
 static FORCE_INLINE uint8_t gf_add(uint8_t x, uint8_t y)
@@ -218,10 +160,6 @@ static FORCE_INLINE uint8_t gf_sqr(uint8_t x)
     return GFContext.GF_SQR_TABLE[x];
 }
 
-
-//------------------------------------------------------------------------------
-// Bulk Memory Math Operations
-
 /// Performs "x[] += y[]" bulk memory XOR operation
 void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes);
 
@@ -244,41 +182,19 @@ static FORCE_INLINE void gf_div_mem(void * __restrict vz, const void * __restric
     gf_mul_mem(vz, vx, y == 1 ? (uint8_t)1 : GFContext.GF_INV_TABLE[y], bytes);
 }
 
-
-//------------------------------------------------------------------------------
-// Misc Operations
-
-/// Swap two memory buffers in-place
-void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
-
-/*
- * Verify binary compatibility with the API on startup.
- *
- * Example:
- * 	if (cm256_init()) exit(1);
- *
- * Returns 0 on success, and any other code indicates failure.
- */
-int cm256_init(void);
-
+//Initialize the encoder
+int cauchy_init(void);
 
 // Encoder parameters
-typedef struct cm256_encoder_params_t {
-    // Original block count < 256
+// block counts must be less than 256
+typedef struct cauchy_encoder_params_t {
     int OriginalCount;
-
-    // Recovery block count < 256
     int RecoveryCount;
+    int BlockBytes; //block size in bytes
+} cauchy_encoder_params;
 
-    // Number of bytes per block (all blocks are the same size in bytes)
-    int BlockBytes;
-} cm256_encoder_params;
-
-// Descriptor for data block
-typedef struct cm256_block_t {
-    // Pointer to data received.
+typedef struct cauchy_block_t {
     uint8_t* Block;
-
     // Block index.
     // For original data, it will be in the range
     //    [0..(originalCount-1)] inclusive.
@@ -286,17 +202,16 @@ typedef struct cm256_block_t {
     //    and it will be in the range
     //    [originalCount..(originalCount+recoveryCount-1)] inclusive.
     unsigned char Index;
-    // Ignored during encoding, required during decoding.
-} cm256_block;
+} cauchy_block;
 
 
-// Compute the value to put in the Index member of cm256_block
-static inline unsigned char cm256_get_recovery_block_index(cm256_encoder_params params, int recoveryBlockIndex)
+// Compute the value to put in the Index member of cauchy_block
+static inline unsigned char cauchy_get_recovery_block_index(cauchy_encoder_params params, int recoveryBlockIndex)
 {
     //assert(recoveryBlockIndex >= 0 && recoveryBlockIndex < params.RecoveryCount);
     return (unsigned char)(params.OriginalCount + recoveryBlockIndex);
 }
-static inline unsigned char cm256_get_original_block_index(cm256_encoder_params params, int originalBlockIndex)
+static inline unsigned char cauchy_get_original_block_index(cauchy_encoder_params params, int originalBlockIndex)
 {
     //assert(originalBlockIndex >= 0 && originalBlockIndex < params.OriginalCount);
     return (unsigned char)(originalBlockIndex);
@@ -304,8 +219,6 @@ static inline unsigned char cm256_get_original_block_index(cm256_encoder_params 
 
 
 /*
- * Cauchy MDS GF(256) encode
- *
  * This produces a set of recovery blocks that should be transmitted after the
  * original data blocks.
  *
@@ -336,16 +249,16 @@ static inline unsigned char cm256_get_original_block_index(cm256_encoder_params 
  * Returns 0 on success, and any other code indicates failure.
  */
 int cauchy_rs_encode(
-    cm256_encoder_params params, // Encoder parameters
-    cm256_block* originals,      // Array of pointers to original blocks
+    cauchy_encoder_params params, // Encoder parameters
+    cauchy_block* originals,      // Array of pointers to original blocks
     void* recoveryBlocks);       // Output recovery blocks end-to-end
 
 // Encode one block.
-// Note: This function does not validate input, use with care.
+// TODO validate input
 void cauchy_rs_encode_block(
-    cm256_encoder_params params, // Encoder parameters
-    cm256_block* originals,      // Array of pointers to original blocks
-    int recoveryBlockIndex,      // Return value from cm256_get_recovery_block_index()
+    cauchy_encoder_params params, // Encoder parameters
+    cauchy_block* originals,      // Array of pointers to original blocks
+    int recoveryBlockIndex,      // Return value from cauchy_get_recovery_block_index()
     void* recoveryBlock);        // Output recovery block
 
 /*
@@ -359,7 +272,7 @@ void cauchy_rs_encode_block(
  * 'blockBytes' used by the encoder.
  *
  * The block Index should be set to the block index of the original data,
- * as described in the cm256_block struct comments above.
+ * as described in the cauchy_block struct comments above.
  *
  * Recovery blocks will be replaced with original data and the Index
  * will be updated to indicate the original block that was recovered.
@@ -367,8 +280,8 @@ void cauchy_rs_encode_block(
  * Returns 0 on success, and any other code indicates failure.
  */
 int cauchy_rs_decode(
-    cm256_encoder_params params, // Encoder parameters
-    cm256_block* blocks);        // Array of 'originalCount' blocks as described above
+    cauchy_encoder_params params, // Encoder parameters
+    cauchy_block* blocks);        // Array of 'originalCount' blocks as described above
 
 
-#endif // CAUCHY_RS_H
+#endif
