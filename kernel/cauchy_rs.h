@@ -54,6 +54,12 @@ typedef unsigned long long __v2du __attribute__ ((__vector_size__ (16)));
 typedef long long __v2di __attribute__ ((__vector_size__ (16)));
 typedef char __v16qi __attribute__ ((__vector_size__ (16)));
 
+//AVX typedefs
+typedef long long __m256i __attribute__ ((__vector_size__ (32), __may_alias__));
+typedef unsigned long long __v4du __attribute__ ((__vector_size__ (32)));
+typedef long long __v4di __attribute__ ((__vector_size__ (32)));
+typedef char __v32qi __attribute__ ((__vector_size__ (32)));
+
 //------------------------------------------------------------------------------
 // Platform/Architecture
 
