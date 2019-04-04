@@ -42,7 +42,7 @@
 #else
     #include <stdlib.h>
     #include <stdint.h>
-    #include <stdlib.h>
+    #include <stdio.h>
     #define cauchy_malloc(arg) malloc(arg)
 #endif
 
