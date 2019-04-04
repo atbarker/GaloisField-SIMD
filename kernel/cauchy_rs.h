@@ -33,9 +33,19 @@
 #ifndef CAUCHY_RS_H
 #define CAUCHY_RS_H
 
-#include <linux/string.h>
-#include <linux/types.h>
-#include <asm/fpu/api.h>
+#if defined(__KERNEL__)
+    #include <linux/string.h>
+    #include <linux/types.h>
+    #include <linux/slab.h>
+    #include <asm/fpu/api.h>
+    #define cauchy_malloc(arg) kmalloc(arg, GFP_KERNEL)
+#else
+    #include <stdlib.h>
+    #include <stdint.h>
+    #include <stdlib.h>
+    #define cauchy_malloc(arg) malloc(arg)
+#endif
+
 
 //#define DEBUG
 
@@ -53,12 +63,6 @@
     #endif
 #else
     #define debug(...) do { } while (false)
-#endif
-
-#if defined(__KERNEL__)
-    #define cauchy_malloc(arg) kmalloc(arg, GFP_KERNEL)
-#else
-    #define cauchy_malloc(arg) malloc(arg)
 #endif
 
 //typedefs from GCC intrinsic file, helps to define vectors

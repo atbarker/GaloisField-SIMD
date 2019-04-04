@@ -32,8 +32,8 @@
 */
 
 #include "cauchy_rs.h"
-#include <linux/types.h>
-#include <linux/slab.h>
+//#include <linux/types.h>
+//#include <linux/slab.h>
 
 #ifdef LINUX_ARM
 #include <linux/auxvec.h>
