@@ -667,6 +667,27 @@ int gf256_init(void) {
 //------------------------------------------------------------------------------
 // Operations
 
+inline GF256_M128 vector_xor(GF256_M128 x, GF256_M128 y){
+    return (GF256_M128)((__v2du)x ^ (__v2du)y);
+}
+
+inline GF256_M128 vector_and(GF256_M128 x, GF256_M128 y){
+    return (GF256_M128)((__v2du)x & (__v2du)y);
+}
+
+//replacement for _mm_srli_epi64
+inline GF256_M128 vector_srli_epi64(GF256_M128 x, int y){ 
+    return (GF256_M128)__builtin_ia32_psrlqi128 ((__v2di)x, y);
+}
+
+inline GF256_M128 vector_shuffle_epi8(GF256_M128 x, GF256_M128 y){
+    return (GF256_M128)__builtin_ia32_pshufb128((__v16qi)x, (__v16qi)y);
+}
+
+inline GF256_M128 vector_set(char x){
+    return __extension__ (GF256_M128)(__v16qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
+}
+
 void gf256_add_mem(void * GF256_RESTRICT vx, const void * GF256_RESTRICT vy, int bytes){
 
     GF256_M128 * GF256_RESTRICT x16 = (GF256_M128 *)(vx);
@@ -777,16 +798,16 @@ void gf256_add_mem(void * GF256_RESTRICT vx, const void * GF256_RESTRICT vy, int
             GF256_M128 x0, y0, x1, x2, x3, y1, y2, y3;
 	    x0 = *x16;
 	    y0 = *y16;
-	    x0 = (GF256_M128)((__v2du)x0 ^ (__v2du)y0);
+	    x0 = vector_xor(x0, y0);
 	    x1 = *(x16+1);
 	    y1 = *(y16+1);
-	    x1 = (GF256_M128)((__v2du)x1 ^ (__v2du)y1);
+	    x1 = vector_xor(x1, y1);
 	    x2 = *(x16+2);
 	    y2 = *(y16+2);
-	    x2 = (GF256_M128)((__v2du)x2 ^ (__v2du)y2);
+	    x2 = vector_xor(x2, y2);
 	    x3 = *(x16+3);
 	    y3 = *(y16+3);
-	    x3 = (GF256_M128)((__v2du)x3 ^ (__v2du)y3);
+	    x3 = vector_xor(x3, y3);
 
 	    *x16 = x0;
 	    *(x16+1) = x1;
@@ -802,13 +823,7 @@ void gf256_add_mem(void * GF256_RESTRICT vx, const void * GF256_RESTRICT vy, int
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // x[i] = x[i] xor y[i]
-        kernel_fpu_begin();
-        _mm_storeu_si128(x16,
-            _mm_xor_si128(
-                _mm_loadu_si128(x16),
-                _mm_loadu_si128(y16)));
-
-        kernel_fpu_end();
+	*x16 = vector_xor(*x16, *y16);
         bytes -= 16, ++x16, ++y16;
     }
 #endif
@@ -918,14 +933,7 @@ void gf256_add2_mem(void * GF256_RESTRICT vz, const void * GF256_RESTRICT vx, co
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // z[i] = z[i] xor x[i] xor y[i]
-        kernel_fpu_begin();
-        _mm_storeu_si128(z16,
-            _mm_xor_si128(
-                _mm_loadu_si128(z16),
-                _mm_xor_si128(
-                    _mm_loadu_si128(x16),
-                    _mm_loadu_si128(y16))));
-        kernel_fpu_end();
+	*z16 = vector_xor(*z16, vector_xor(*x16, *y16));
 
         bytes -= 16, ++x16, ++y16, ++z16;
     }
@@ -1054,22 +1062,20 @@ void gf256_addset_mem(void * GF256_RESTRICT vz, const void * GF256_RESTRICT vx, 
         // Handle multiples of 64 bytes
         while (bytes >= 64) {
             GF256_M128 x0, x1, x2, x3, y0, y1, y2, y3;
-            kernel_fpu_begin();
-            x0 = _mm_loadu_si128(x16);
-            x1 = _mm_loadu_si128(x16 + 1);
-            x2 = _mm_loadu_si128(x16 + 2);
-            x3 = _mm_loadu_si128(x16 + 3);
-            y0 = _mm_loadu_si128(y16);
-            y1 = _mm_loadu_si128(y16 + 1);
-            y2 = _mm_loadu_si128(y16 + 2);
-            y3 = _mm_loadu_si128(y16 + 3);
+            x0 = *x16;
+            x1 = *(x16 + 1);
+            x2 = *(x16 + 2);
+            x3 = *(x16 + 3);
+            y0 = *y16;
+            y1 = *(y16 + 1);
+            y2 = *(y16 + 2);
+            y3 = *(y16 + 3);
 
-            _mm_storeu_si128(z16,     _mm_xor_si128(x0, y0));
-            _mm_storeu_si128(z16 + 1, _mm_xor_si128(x1, y1));
-            _mm_storeu_si128(z16 + 2, _mm_xor_si128(x2, y2));
-            _mm_storeu_si128(z16 + 3, _mm_xor_si128(x3, y3));
+	    *z16 = vector_xor(x0, y0);
+            *(z16 + 1) = vector_xor(x1, y1);
+            *(z16 + 2) = vector_xor(x2, y2);
+            *(z16 + 3) = vector_xor(x3, y3);
 
-            kernel_fpu_end();
             bytes -= 64, x16 += 4, y16 += 4, z16 += 4;
         }
     }
@@ -1077,13 +1083,7 @@ void gf256_addset_mem(void * GF256_RESTRICT vz, const void * GF256_RESTRICT vx, 
     // Handle multiples of 16 bytes
     while (bytes >= 16) {
         // z[i] = x[i] xor y[i]
-        kernel_fpu_begin();
-        _mm_storeu_si128(z16,
-            _mm_xor_si128(
-                _mm_loadu_si128(x16),
-                _mm_loadu_si128(y16)));
-
-        kernel_fpu_end();
+	*z16 = vector_xor(*x16, *y16);
         bytes -= 16, ++x16, ++y16, ++z16;
     }
 #endif // GF256_TARGET_MOBILE
@@ -1204,28 +1204,26 @@ void gf256_mul_mem(void * GF256_RESTRICT vz, const void * GF256_RESTRICT vx, uin
     if (bytes >= 16 && CpuHasSSSE3) {
         GF256_M128 table_lo_y, table_hi_y, clr_mask;
         // Partial product tables; see above
-        kernel_fpu_begin();
-        table_lo_y = _mm_loadu_si128(GF256Ctx.MM128.TABLE_LO_Y + y);
-        table_hi_y = _mm_loadu_si128(GF256Ctx.MM128.TABLE_HI_Y + y);
+        table_lo_y = *(GF256Ctx.MM128.TABLE_LO_Y + y);
+        table_hi_y = *(GF256Ctx.MM128.TABLE_HI_Y + y);
 
         // clr_mask = 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-        clr_mask = _mm_set1_epi8(0x0f);
-        kernel_fpu_end();
+        clr_mask = vector_set(0x0f);
 
         // Handle multiples of 16 bytes
         do {
             GF256_M128 x0, l0, h0;
-            kernel_fpu_begin();
             // See above comments for details
-            x0 = _mm_loadu_si128(x16);
-            l0 = _mm_and_si128(x0, clr_mask);
-            x0 = _mm_srli_epi64(x0, 4);
-            h0 = _mm_and_si128(x0, clr_mask);
-            l0 = _mm_shuffle_epi8(table_lo_y, l0);
-            h0 = _mm_shuffle_epi8(table_hi_y, h0);
-            _mm_storeu_si128(z16, _mm_xor_si128(l0, h0));
+            x0 = *(x16);
+            l0 = vector_and(x0, clr_mask);
+	    kernel_fpu_begin();
+            x0 = vector_srli_epi64(x0, 4);
+            h0 = vector_and(x0, clr_mask);
+            l0 = vector_shuffle_epi8(table_lo_y, l0);
+            h0 = vector_shuffle_epi8(table_hi_y, h0);
+	    kernel_fpu_end();
+            *(z16) =  vector_xor(l0, h0);
 
-            kernel_fpu_end();
             bytes -= 16, ++x16, ++z16;
         } while (bytes >= 16);
     }
@@ -1390,44 +1388,44 @@ void gf256_muladd_mem(void * GF256_RESTRICT vz, uint8_t y, const void * GF256_RE
     if (bytes >= 16 && CpuHasSSSE3) {
         // Partial product tables; see above
         GF256_M128 table_lo_y, table_hi_y, clr_mask;
-        kernel_fpu_begin();
-        table_lo_y = _mm_loadu_si128(GF256Ctx.MM128.TABLE_LO_Y + y);
-        table_hi_y = _mm_loadu_si128(GF256Ctx.MM128.TABLE_HI_Y + y);
+        table_lo_y = *(GF256Ctx.MM128.TABLE_LO_Y + y);
+        table_hi_y = *(GF256Ctx.MM128.TABLE_HI_Y + y);
 
         // clr_mask = 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-        clr_mask = _mm_set1_epi8(0x0f);
-        kernel_fpu_end();
+        clr_mask = vector_set(0x0f);
 
         // This unroll seems to provide about 7% speed boost when AVX2 is disabled
         while (bytes >= 32) {
             GF256_M128 x1, l1, h1, z1, h0, z0, x0, l0, p0, p1;
-            kernel_fpu_begin();
 
-            x1 = _mm_loadu_si128(x16 + 1);
-            l1 = _mm_and_si128(x1, clr_mask);
+            x1 = *(x16 + 1);
+            l1 = vector_and(x1, clr_mask);
 
             bytes -= 32;
-            x1 = _mm_srli_epi64(x1, 4);
-            h1 = _mm_and_si128(x1, clr_mask);
-            l1 = _mm_shuffle_epi8(table_lo_y, l1);
-            h1 = _mm_shuffle_epi8(table_hi_y, h1);
-            z1 = _mm_loadu_si128(z16 + 1);
+	    kernel_fpu_begin();
+            x1 = vector_srli_epi64(x1, 4);
+            h1 = vector_and(x1, clr_mask);
+            l1 = vector_shuffle_epi8(table_lo_y, l1);
+            h1 = vector_shuffle_epi8(table_hi_y, h1);
+	    kernel_fpu_end();
+            z1 = *(z16 + 1);
 
-            x0 = _mm_loadu_si128(x16);
-            l0 = _mm_and_si128(x0, clr_mask);
-            x0 = _mm_srli_epi64(x0, 4);
-            h0 = _mm_and_si128(x0, clr_mask);
-            l0 = _mm_shuffle_epi8(table_lo_y, l0);
-            h0 = _mm_shuffle_epi8(table_hi_y, h0);
-            z0 = _mm_loadu_si128(z16);
+            x0 = *(x16);
+            l0 = vector_and(x0, clr_mask);
+	    kernel_fpu_begin();
+            x0 = vector_srli_epi64(x0, 4);
+            h0 = vector_and(x0, clr_mask);
+            l0 = vector_shuffle_epi8(table_lo_y, l0);
+            h0 = vector_shuffle_epi8(table_hi_y, h0);
+	    kernel_fpu_end();
+            z0 = *(z16);
 
-            p1 = _mm_xor_si128(l1, h1);
-            _mm_storeu_si128(z16 + 1, _mm_xor_si128(p1, z1));
+            p1 = vector_xor(l1, h1);
+            *(z16 + 1) = vector_xor(p1, z1);
 
-            p0 = _mm_xor_si128(l0, h0);
-            _mm_storeu_si128(z16, _mm_xor_si128(p0, z0));
+            p0 = vector_xor(l0, h0);
+            *(z16) = vector_xor(p0, z0);
 
-            kernel_fpu_end();
             x16 += 2, z16 += 2;
         }
 
@@ -1435,17 +1433,17 @@ void gf256_muladd_mem(void * GF256_RESTRICT vz, uint8_t y, const void * GF256_RE
         while (bytes >= 16) {
             // See above comments for details
             GF256_M128 x0, h0, l0, p0, z0;
-            kernel_fpu_begin();
-            x0 = _mm_loadu_si128(x16);
-            l0 = _mm_and_si128(x0, clr_mask);
-            x0 = _mm_srli_epi64(x0, 4);
-            h0 = _mm_and_si128(x0, clr_mask);
-            l0 = _mm_shuffle_epi8(table_lo_y, l0);
-            h0 = _mm_shuffle_epi8(table_hi_y, h0);
-            p0 = _mm_xor_si128(l0, h0);
-            z0 = _mm_loadu_si128(z16);
-            _mm_storeu_si128(z16, _mm_xor_si128(p0, z0));
-            kernel_fpu_end();
+            x0 = *(x16);
+            l0 = vector_and(x0, clr_mask);
+	    kernel_fpu_begin();
+            x0 = vector_srli_epi64(x0, 4);
+            h0 = vector_and(x0, clr_mask);
+            l0 = vector_shuffle_epi8(table_lo_y, l0);
+            h0 = vector_shuffle_epi8(table_hi_y, h0);
+	    kernel_fpu_end();
+            p0 = vector_xor(l0, h0);
+            z0 = *(z16);
+            *(z16) = vector_xor(p0, z0);
             bytes -= 16, ++x16, ++z16;
         }
     }
@@ -1519,12 +1517,10 @@ void gf256_memswap(void * GF256_RESTRICT vx, void * GF256_RESTRICT vy, int bytes
     // Handle blocks of 16 bytes
     while (bytes >= 16) {
         GF256_M128 x0, y0;
-        kernel_fpu_begin();
-        x0 = _mm_loadu_si128(x16);
-        y0 = _mm_loadu_si128(y16);
-        _mm_storeu_si128(x16, y0);
-        _mm_storeu_si128(y16, x0);
-        kernel_fpu_end();
+        x0 = *(x16);
+        y0 = *(y16);
+	*x16 = y0;
+	*y16 = x0;
 
         bytes -= 16, ++x16, ++y16;
     }
