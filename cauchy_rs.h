@@ -47,7 +47,7 @@
 #endif
 
 
-//#define DEBUG
+#define DEBUG
 
 //fun with print statements
 #if defined(DEBUG)
@@ -78,7 +78,7 @@ typedef long long __v4di __attribute__ ((__vector_size__ (32)));
 typedef char __v32qi __attribute__ ((__vector_size__ (32)));
 
 //check for AVX extension
-#if defined(__AVX2__)
+#ifdef __AVX2__
     #define GF_AVX2 /* 256-bit */
     #define M256 __m256i
     #define GF_ALIGN_BYTES 32

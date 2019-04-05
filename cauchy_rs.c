@@ -579,7 +579,6 @@ static void gf_mul_mem_init(void) {
             lo[x] = gf_mul(x, (uint8_t)( y ));
             hi[x] = gf_mul(x << 4, (uint8_t)( y ));
         }
-
 #if defined(GF_NEON)
         if (CpuHasNeon) {
 	    kernel_fpu_begin();
@@ -596,9 +595,10 @@ static void gf_mul_mem_init(void) {
 	*(GFContext.MM128.TABLE_HI_Y + y) = table_hi;
 # ifdef GF_AVX2
         if (CpuHasAVX2) {
+	    M256 table_lo2, table_hi2;
             kernel_fpu_begin();
-            const M256 table_lo2 = (M256)__builtin_ia32_vbroadcastsi128((__v2di)table_lo);
-            const M256 table_hi2 = (M256)__builtin_ia32_vbroadcastsi128((__v2di)table_hi);
+            table_lo2 = (M256)__builtin_ia32_vbroadcastsi256((__v2di)table_lo);
+            table_hi2 = (M256)__builtin_ia32_vbroadcastsi256((__v2di)table_hi);
             kernel_fpu_end();
             *(GFContext.MM256.TABLE_LO_Y + y) = table_lo2;
             *(GFContext.MM256.TABLE_HI_Y + y) = table_hi2;
@@ -665,7 +665,29 @@ int gf_init(void) {
 //------------------------------------------------------------------------------
 // Operations
 
-#ifndef GF_ARM
+#if defined(GF_AVX2)
+//all of these are versions of the above for AVX instructions
+inline M256 vector_xor_256(M256 x, M256 y){
+    return (M256) ((__v4du)x ^ (__v4du)y);
+}
+
+inline M256 vector_and_256(M256 x, M256 y){
+    return (M256) ((__v4du)x & (__v4du)y);
+}
+
+inline M256 vector_srli_epi64_256(M256 x, int y){
+    return (M256) __builtin_ia32_psrlqi256 ((__v4di)x, y);
+}
+
+inline M256 vector_shuffle_epi8_256(M256 x, M256 y){
+    return (M256)__builtin_ia32_pshufb256((__v32qi)x, (__v32qi)y);
+}
+
+inline M256 vector_set_256(char x){
+    return __extension__ (M256)(__v32qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
+}
+
+#endif
 //replacement for _mm_xor_si128
 inline M128 vector_xor(M128 x, M128 y){
     return (M128)((__v2du)x ^ (__v2du)y);
@@ -677,7 +699,7 @@ inline M128 vector_and(M128 x, M128 y){
 }
 
 //replacement for _mm_srli_epi64
-inline M128 vector_srli_epi64(M128 x, int y){ 
+inline M128 vector_srli_epi64(M128 x, int y){
     return (M128)__builtin_ia32_psrlqi128 ((__v2di)x, y);
 }
 
@@ -690,32 +712,8 @@ inline M128 vector_shuffle_epi8(M128 x, M128 y){
 inline M128 vector_set(char x){
     return __extension__ (M128)(__v16qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 }
-#endif
 
-#if defined(GF_AVX2)
-//all of these are versions of the above for AVX instructions
-inline M256 vector_xor_256(M256 x, M256 y){
-    return (M256) ((__v4du)x ^ (__v4du)y);
-}
 
-inline M256 vector_and_256(M256 x, M256 y){
-    return (M256) ((__v4du)x & (__v4du)y);
-}
-
-inline M256 vector_srli_epi64(M256 x, int y){
-    return (M256)__builtin_ia32_psrldqi256((__v4di)x, y);
-}
-
-inline M256 vector_shuffle_epi8(M256 x, M256 y){
-    return (M256)__builtin_ia32_pshufb256((__v32qi)x, (__v32qi)y);
-}
-
-inline M256 vector_set_256(char x){
-    return __extension__ (M256)(__v32qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x
-                                         x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
-}
-
-#endif
 
 void gf_add_mem(void * __restrict vx, const void * __restrict vy, int bytes){
 
@@ -1163,14 +1161,16 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
 # if defined(GF_AVX2)
     if (bytes >= 32 && CpuHasAVX2) {
         M256 table_lo_y, table_hi_y, clr_mask;
+	M256 * __restrict z32;
+	M256 * __restrict x32;
         // Partial product tables; see above
         table_lo_y = *(GFContext.MM256.TABLE_LO_Y + y);
         table_hi_y = *(GFContext.MM256.TABLE_HI_Y + y);
         // clr_mask = 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
         clr_mask = vector_set_256(0x0f);
 
-        M256 * __restrict z32 = (M256 *)(vz);
-        const M256 * __restrict x32 = (const M256 *)(vx);
+        z32 = (M256 *)(vz);
+        x32 = (M256 *)(vx);
 
         // Handle multiples of 32 bytes
         do {
@@ -1179,10 +1179,10 @@ void gf_mul_mem(void * __restrict vz, const void * __restrict vx, uint8_t y, int
             x0 = *(x32);
             l0 = vector_and_256(x0, clr_mask);
             kernel_fpu_begin();
-            x0 = vector_srli_epi64(x0, 4);
+            x0 = vector_srli_epi64_256(x0, 4);
             h0 = vector_and_256(x0, clr_mask);
-            l0 = vector_shuffle_epi8(table_lo_y, l0);
-            h0 = vector_shuffle_epi8(table_hi_y, h0);
+            l0 = vector_shuffle_epi8_256(table_lo_y, l0);
+            h0 = vector_shuffle_epi8_256(table_hi_y, h0);
             kernel_fpu_end();
             *(z32) = vector_xor_256(l0, h0);
 
@@ -1314,29 +1314,31 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
     if (bytes >= 32 && CpuHasAVX2) {
         // Partial product tables; see above
         M256 table_lo_y, table_hi_y, clr_mask;
+	M256 * __restrict z32;
+        M256 * __restrict x32;
+	unsigned count, i;
         table_lo_y = *(GFContext.MM256.TABLE_LO_Y + y);
         table_hi_y = *(GFContext.MM256.TABLE_HI_Y + y);
 
         // clr_mask = 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-        clr_mask = vector_set(0x0f);
+        clr_mask = vector_set_256(0x0f);
 
-        M256 * __restrict z32 = (M256 *)(z16);
-        const M256 * __restrict x32 = (const M256 *)(x16);
+        z32 = (M256 *)(z16);
+        x32 = (M256 *)(x16);
 
         // On my Reed Solomon codec, the encoder unit test runs in 640 usec without and 550 usec with the optimization (86% of the original time)
-        const unsigned count = bytes / 64;
-        unsigned i;
+        count = bytes / 64;
         for (i = 0; i < count; ++i) {
-            M256 x0, l0, z0, p0, x1, l1, z1, p1;
+            M256 x0, l0, z0, p0, x1, l1, z1, p1, h0, h1;
             // See above comments for details
             x0 = *(x32 + i * 2);
             l0 = vector_and_256(x0, clr_mask);
             kernel_fpu_begin();
-            x0 = vector_srli_epi64(x0, 4);
+            x0 = vector_srli_epi64_256(x0, 4);
             z0 = *(z32 + i * 2);
             h0 = vector_and_256(x0, clr_mask);
-            l0 = vector_shuffle_epi8(table_lo_y, l0);
-            h0 = vector_shuffle_epi8(table_hi_y, h0);
+            l0 = vector_shuffle_epi8_256(table_lo_y, l0);
+            h0 = vector_shuffle_epi8_256(table_hi_y, h0);
             kernel_fpu_end();
             p0 = vector_xor_256(l0, h0);
             *(z32 + i * 2) =  vector_xor_256(p0, z0);
@@ -1344,11 +1346,11 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             x1 = *(x32 + i * 2 + 1);
             l1 = vector_and_256(x1, clr_mask);
             kernel_fpu_begin();
-            x1 = vector_srli_epi64(x1, 4);
+            x1 = vector_srli_epi64_256(x1, 4);
             z1 = *(z32 + i * 2 + 1);
             h1 = vector_and_256(x1, clr_mask);
-            l1 = vector_shuffle_epi8(table_lo_y, l1);
-            h1 = vector_shuffle_epi8(table_hi_y, h1);
+            l1 = vector_shuffle_epi8_256(table_lo_y, l1);
+            h1 = vector_shuffle_epi8_256(table_hi_y, h1);
             kernel_fpu_end();
             p1 = vector_xor_256(l1, h1);
             *(z32 + i * 2 + 1) =  vector_xor_256(p1, z1);
@@ -1362,10 +1364,10 @@ void gf_muladd_mem(void * __restrict vz, uint8_t y, const void * __restrict vx, 
             x0 = *(x32);
             l0 = vector_and_256(x0, clr_mask);
             kernel_fpu_begin();
-            x0 = vector_srli_epi64(x0, 4);
+            x0 = vector_srli_epi64_256(x0, 4);
             h0 = vector_and_256(x0, clr_mask);
-            l0 = vector_shuffle_epi8(table_lo_y, l0);
-            h0 = vector_shuffle_epi8(table_hi_y, h0);
+            l0 = vector_shuffle_epi8_256(table_lo_y, l0);
+            h0 = vector_shuffle_epi8_256(table_hi_y, h0);
             kernel_fpu_end();
             p0 = vector_xor_256(l0, h0);
             z0 = *(z32);
