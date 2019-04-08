@@ -1713,10 +1713,8 @@ void cauchy_rs_encode_block(
 int cauchy_rs_encode(
     cauchy_encoder_params params, // Encoder params
     cauchy_block* originals,      // Array of pointers to original blocks
-    void* recoveryBlocks,
     uint8_t** recoveryArray)        // Output recovery blocks end-to-end
 {
-    uint8_t* recoveryBlock;
     int block;
 
     // Validate input:
@@ -1726,17 +1724,16 @@ int cauchy_rs_encode(
     if (params.OriginalCount + params.RecoveryCount > 256){
         return -2;
     }
-    if (!originals || !recoveryBlocks){
+    if (!originals || !recoveryArray){
         return -3;
     }
 
-    recoveryBlock = (uint8_t*)(recoveryBlocks);
+    //recoveryBlock = (uint8_t*)(recoveryBlocks);
 
-    for (block = 0; block < params.RecoveryCount; ++block, recoveryBlock += params.BlockBytes){
-        cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), recoveryBlock);
-	print_hex_dump(KERN_DEBUG, "output:", DUMP_PREFIX_OFFSET, 20, 1, (void*)recoveryBlock, 16, true);
+    for (block = 0; block < params.RecoveryCount; ++block){
+        cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), recoveryArray[block]);
+	print_hex_dump(KERN_DEBUG, "output:", DUMP_PREFIX_OFFSET, 20, 1, (void*)recoveryArray[block], 16, true);
 	printk(KERN_INFO "\n");
-	recoveryArray[block] = recoveryBlock;
     }
 
     print_hex_dump(KERN_DEBUG, "array:", DUMP_PREFIX_OFFSET, 20, 1, (void*)recoveryArray[0], 16, true);

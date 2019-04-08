@@ -23,7 +23,7 @@ int ExampleFileUsage(void)
     static const int OriginalFileBytes = ORIGINAL_COUNT * BLOCK_BYTES;
     uint8_t* originalFileData; 
     uint8_t* filedatacopy;
-    uint8_t* recoveryBlocks;
+    //uint8_t* recoveryBlocks;
     cauchy_block *blocks = kmalloc(sizeof(cauchy_block) * 256, GFP_KERNEL);
     int i, ret;
     struct timespec timespec1, timespec2;
@@ -65,11 +65,11 @@ int ExampleFileUsage(void)
     printk(KERN_INFO "data generated\n");
 
     // Recovery data
-    recoveryBlocks = kmalloc(params.RecoveryCount * params.BlockBytes, GFP_KERNEL);
+    //recoveryBlocks = kmalloc(params.RecoveryCount * params.BlockBytes, GFP_KERNEL);
 
     // Generate recovery data
     getnstimeofday(&timespec1);
-    if (cauchy_rs_encode(params, blocks, recoveryBlocks, recoveryArray))
+    if (cauchy_rs_encode(params, blocks, recoveryArray))
     {
         return 1;
     }
@@ -77,6 +77,7 @@ int ExampleFileUsage(void)
     printk(KERN_INFO "Encode took: %ld nanoseconds",
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec));
 
+    
     // Initialize the indices
     for (i = 0; i < params.OriginalCount; ++i)
     {
@@ -84,11 +85,11 @@ int ExampleFileUsage(void)
     }
 
     //// Simulate loss of data, subsituting a recovery block in its place ////
-    blocks[0].Block = &recoveryBlocks[0]; // First recovery block
+    blocks[0].Block = recoveryArray[0]; // First recovery block
     blocks[0].Index = cauchy_get_recovery_block_index(params, 0); // First recovery block index
     //// Simulate loss of data, subsituting a recovery block in its place ////
     
-    blocks[1].Block = &recoveryBlocks[4096];
+    blocks[1].Block = recoveryArray[1];
     blocks[1].Index = cauchy_get_recovery_block_index(params, 1);
 
     getnstimeofday(&timespec1);    
@@ -112,11 +113,11 @@ int ExampleFileUsage(void)
     }
 
     printk(KERN_INFO "decode worked\n");
-
+    
 
     kfree(originalFileData);
     kfree(filedatacopy);
-    kfree(recoveryBlocks);
+    //kfree(recoveryBlocks);
     kfree(blocks);
     kfree(recoveryArray);
     return 0;
