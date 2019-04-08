@@ -1,6 +1,6 @@
 PWD := $(shell pwd)
 
-ccflags-y += -I$(src)/include/ -msse3 -msse4.1 -mavx2
+ccflags-y += -I$(src)/include/ -msse3 -msse4.1 -mavx2 -mpreferred-stack-boundary=4
 
 RStest-objs := main.o cauchy_rs.o
 obj-m += RStest.o

@@ -57,8 +57,10 @@ int ExampleFileUsage(void)
 
     // Generate recovery data
     getnstimeofday(&timespec1);
-    if (cauchy_rs_encode(params, dataBlocks, recoveryArray))
-    {
+    ret = cauchy_rs_encode(params, dataBlocks, recoveryArray);
+    
+    if(ret){
+        printk("Error when encoding %d\n", ret);
         return 1;
     }
     getnstimeofday(&timespec2);
