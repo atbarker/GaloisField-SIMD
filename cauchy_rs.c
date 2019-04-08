@@ -1715,7 +1715,7 @@ int cauchy_rs_encode(
     uint8_t** dataBlocks,
     uint8_t** parityBlocks)        // Output recovery blocks end-to-end
 {
-    cauchy_block* originals = kmalloc(sizeof(cauchy_block) * params.OriginalCount, GFP_KERNEL);
+    cauchy_block* originals = cauchy_malloc(sizeof(cauchy_block) * params.OriginalCount);
     int block;
 
     if (params.OriginalCount <= 0 || params.RecoveryCount <= 0 || params.BlockBytes <= 0){
@@ -2049,9 +2049,14 @@ void Decode(CauchyDecoder *decoder) {
 
 int cauchy_rs_decode(
     cauchy_encoder_params params, // Encoder params
-    cauchy_block* blocks)         // Array of 'originalCount' blocks as described above
+    uint8_t** dataBlocks,
+    uint8_t** parityBlocks,
+    uint8_t* erasures,
+    uint8_t num_erasures)         // Array of 'originalCount' blocks as described above
 {
     CauchyDecoder *state = cauchy_malloc(sizeof(CauchyDecoder));
+    cauchy_block *blocks = cauchy_malloc(sizeof(cauchy_block) * params.OriginalCount);
+    int i = 0;
 
     if (params.OriginalCount <= 0 || params.RecoveryCount <= 0 || params.BlockBytes <= 0) {
         return -1;
@@ -2063,11 +2068,14 @@ int cauchy_rs_decode(
         return -3;
     }
 
-    // If there is only one block,
-    if (params.OriginalCount == 1) {
-        // It is the same block repeated
-        blocks[0].Index = 0;
-        return 0;
+    for(i = 0; i < params.OriginalCount; ++i){
+        blocks[i].Block = dataBlocks[i];
+        blocks[i].Index = cauchy_get_original_block_index(params, i);
+    }
+
+    for(i = 0; i < num_erasures; i++){
+        blocks[erasures[i]].Block = parityBlocks[i];
+        blocks[erasures[i]].Index = cauchy_get_recovery_block_index(params, i);
     }
 
     if (Initialize(state, params, blocks)) {
@@ -2087,5 +2095,6 @@ int cauchy_rs_decode(
 
     // Decode for m>1
     Decode(state);
+    kfree(blocks);
     return 0;
 }

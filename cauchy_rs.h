@@ -308,7 +308,10 @@ void cauchy_rs_encode_block(
  */
 int cauchy_rs_decode(
     cauchy_encoder_params params, // Encoder parameters
-    cauchy_block* blocks);        // Array of 'originalCount' blocks as described above
+    uint8_t** dataBlocks,
+    uint8_t** parityBlocks,
+    uint8_t* erasures,
+    uint8_t num_erasures);        // Array of 'originalCount' blocks as described above
 
 
 #endif
