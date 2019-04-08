@@ -1728,15 +1728,9 @@ int cauchy_rs_encode(
         return -3;
     }
 
-    //recoveryBlock = (uint8_t*)(recoveryBlocks);
-
     for (block = 0; block < params.RecoveryCount; ++block){
         cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), recoveryArray[block]);
-	print_hex_dump(KERN_DEBUG, "output:", DUMP_PREFIX_OFFSET, 20, 1, (void*)recoveryArray[block], 16, true);
-	printk(KERN_INFO "\n");
     }
-
-    print_hex_dump(KERN_DEBUG, "array:", DUMP_PREFIX_OFFSET, 20, 1, (void*)recoveryArray[0], 16, true);
 
     return 0;
 }
