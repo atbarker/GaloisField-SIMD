@@ -1761,13 +1761,6 @@ typedef struct {
     // Row indices that were erased
     uint8_t ErasuresIndices[256];
 
-    // Initialize the decoder
-
-    // Decode m=1 case
-
-    // Decode for m>1 case
-
-    // Generate the LU decomposition of the matrix
 }CauchyDecoder;
 
 int Initialize(CauchyDecoder *decoder, cauchy_encoder_params params, cauchy_block* blocks) {
