@@ -1712,26 +1712,31 @@ void cauchy_rs_encode_block(
 
 int cauchy_rs_encode(
     cauchy_encoder_params params, // Encoder params
-    cauchy_block* originals,      // Array of pointers to original blocks
-    uint8_t** recoveryArray)        // Output recovery blocks end-to-end
+    uint8_t** dataBlocks,
+    uint8_t** parityBlocks)        // Output recovery blocks end-to-end
 {
+    cauchy_block* originals = kmalloc(sizeof(cauchy_block) * params.OriginalCount, GFP_KERNEL);
     int block;
 
-    // Validate input:
     if (params.OriginalCount <= 0 || params.RecoveryCount <= 0 || params.BlockBytes <= 0){
         return -1;
     }
     if (params.OriginalCount + params.RecoveryCount > 256){
         return -2;
     }
-    if (!originals || !recoveryArray){
+    if (!originals || !parityBlocks || !dataBlocks){
         return -3;
     }
 
-    for (block = 0; block < params.RecoveryCount; ++block){
-        cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), recoveryArray[block]);
+    for (block = 0; block < params.OriginalCount; ++block){
+        originals[block].Block = dataBlocks[block];
     }
 
+    for (block = 0; block < params.RecoveryCount; ++block){
+        cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), parityBlocks[block]);
+    }
+
+    kfree(originals);
     return 0;
 }
 
