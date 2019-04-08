@@ -246,39 +246,13 @@ static inline unsigned char cauchy_get_original_block_index(cauchy_encoder_param
 
 
 /*
- * This produces a set of recovery blocks that should be transmitted after the
- * original data blocks.
- *
- * It takes in 'originalCount' equal-sized blocks and produces 'recoveryCount'
- * equally-sized recovery blocks.
- *
- * The input 'originals' array allows more natural usage of the library.
- * The output recovery blocks are stored end-to-end in 'recoveryBlocks'.
- * 'recoveryBlocks' should have recoveryCount * blockBytes bytes available.
- *
- * Precondition: originalCount + recoveryCount <= 256
- *
- * When transmitting the data, the block index of the data should be sent,
- * and the recovery block index is also needed.  The decoder should also
- * be provided with the values of originalCount, recoveryCount and blockBytes.
- *
- * Example wire format:
- * [originalCount(1 byte)] [recoveryCount(1 byte)]
- * [blockIndex(1 byte)] [blockData(blockBytes bytes)]
- *
- * Be careful not to mix blocks from different encoders.
- *
- * It is possible to support variable-length data by including the original
- * data length at the front of each message in 2 bytes, such that when it is
- * recovered after a loss the data length is available in the block data and
- * the remaining bytes of padding can be neglected.
- *
- * Returns 0 on success, and any other code indicates failure.
+ * This produces a set of parity blocks from the original data blocks as specified
+ * in the parameters structure.
  */
 int cauchy_rs_encode(
     cauchy_encoder_params params, // Encoder parameters
     uint8_t** dataBlocks,         // Array of pointers to original blocks
-    uint8_t** parityBlocks);      // Output recovery blocks end-to-end
+    uint8_t** parityBlocks);      // Array of pointers to output parity blocks
 
 // Encode one block.
 // TODO validate input
@@ -289,29 +263,21 @@ void cauchy_rs_encode_block(
     void* recoveryBlock);        // Output recovery block
 
 /*
- * Cauchy MDS GF(256) decode
+ * Cauchy Reed-Solomon decode
  *
- * This recovers the original data from the recovery data in the provided
- * blocks.  There should be 'originalCount' blocks in the provided array.
- * Recovery will always be possible if that many blocks are received.
+ * Input is the array of the (potentially damaged) data blocks, the parity
+ * blocks that are output by the encoding function, and an array of erasures
  *
- * Provide the same values for 'originalCount', 'recoveryCount', and
- * 'blockBytes' used by the encoder.
- *
- * The block Index should be set to the block index of the original data,
- * as described in the cauchy_block struct comments above.
- *
- * Recovery blocks will be replaced with original data and the Index
- * will be updated to indicate the original block that was recovered.
- *
- * Returns 0 on success, and any other code indicates failure.
+ * The length of the erasures array should be equal to the number of erasures
+ * Each entry in that array is the index of an erased block in the original 
+ * code word.
  */
 int cauchy_rs_decode(
     cauchy_encoder_params params, // Encoder parameters
-    uint8_t** dataBlocks,
-    uint8_t** parityBlocks,
-    uint8_t* erasures,
-    uint8_t num_erasures);        // Array of 'originalCount' blocks as described above
+    uint8_t** dataBlocks,         // array of pointers to data blocks
+    uint8_t** parityBlocks,       // array of pointers to parity blocks
+    uint8_t* erasures,            // array of erasures
+    uint8_t num_erasures);        // the number of erasures
 
 
 #endif

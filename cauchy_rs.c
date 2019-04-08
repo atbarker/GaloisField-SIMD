@@ -667,49 +667,49 @@ int gf_init(void) {
 
 #if defined(GF_AVX2)
 //all of these are versions of the above for AVX instructions
-inline M256 vector_xor_256(M256 x, M256 y){
+static inline M256 vector_xor_256(M256 x, M256 y){
     return (M256) ((__v4du)x ^ (__v4du)y);
 }
 
-inline M256 vector_and_256(M256 x, M256 y){
+static inline M256 vector_and_256(M256 x, M256 y){
     return (M256) ((__v4du)x & (__v4du)y);
 }
 
-inline M256 vector_srli_epi64_256(M256 x, int y){
+static inline M256 vector_srli_epi64_256(M256 x, int y){
     return (M256) __builtin_ia32_psrlqi256 ((__v4di)x, y);
 }
 
-inline M256 vector_shuffle_epi8_256(M256 x, M256 y){
+static inline M256 vector_shuffle_epi8_256(M256 x, M256 y){
     return (M256)__builtin_ia32_pshufb256((__v32qi)x, (__v32qi)y);
 }
 
-inline M256 vector_set_256(char x){
+static inline M256 vector_set_256(char x){
     return __extension__ (M256)(__v32qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 }
 
 #endif
 //replacement for _mm_xor_si128
-inline M128 vector_xor(M128 x, M128 y){
+static inline M128 vector_xor(M128 x, M128 y){
     return (M128)((__v2du)x ^ (__v2du)y);
 }
 
 //replacement for _mm_and_si128
-inline M128 vector_and(M128 x, M128 y){
+static inline M128 vector_and(M128 x, M128 y){
     return (M128)((__v2du)x & (__v2du)y);
 }
 
 //replacement for _mm_srli_epi64
-inline M128 vector_srli_epi64(M128 x, int y){
+static inline M128 vector_srli_epi64(M128 x, int y){
     return (M128)__builtin_ia32_psrlqi128 ((__v2di)x, y);
 }
 
 //replacement for _mm_shuffle_epi8
-inline M128 vector_shuffle_epi8(M128 x, M128 y){
+static inline M128 vector_shuffle_epi8(M128 x, M128 y){
     return (M128)__builtin_ia32_pshufb128((__v16qi)x, (__v16qi)y);
 }
 
 //replacement for _mm_set1_epi8
-inline M128 vector_set(char x){
+static inline M128 vector_set(char x){
     return __extension__ (M128)(__v16qi){x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 }
 
