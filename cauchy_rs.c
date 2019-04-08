@@ -1733,9 +1733,9 @@ int cauchy_rs_encode(
     }
 
     for (block = 0; block < params.RecoveryCount; ++block){
-        print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)originals[block].Block, 16, true);
+        //print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)originals[block].Block, 16, true);
         cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), parityBlocks[block]);
-	print_hex_dump(KERN_DEBUG, "parity: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)parityBlocks[block], 16, true);
+	//print_hex_dump(KERN_DEBUG, "parity: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)parityBlocks[block], 16, true);
     }
 
     kfree(originals);
@@ -2098,7 +2098,7 @@ int cauchy_rs_decode(
     // Decode for m>1
     Decode(state);
     for(i = 0; i < params.OriginalCount; ++i){
-        print_hex_dump(KERN_DEBUG, "decoded: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)blocks[i].Block, 16, true);
+    //    print_hex_dump(KERN_DEBUG, "decoded: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)blocks[i].Block, 16, true);
         memcpy(dataBlocks[i], blocks[i].Block, params.BlockBytes);
     }
 
