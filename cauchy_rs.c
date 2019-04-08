@@ -1733,6 +1733,7 @@ int cauchy_rs_encode(
     }
 
     for (block = 0; block < params.RecoveryCount; ++block){
+        print_hex_dump(KERN_DEBUG, "decoded: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)originals[block].Block, 16, true);
         cauchy_rs_encode_block(params, originals, (params.OriginalCount + block), parityBlocks[block]);
     }
 
@@ -2091,6 +2092,11 @@ int cauchy_rs_decode(
     if (params.RecoveryCount == 1) {
         DecodeM1(state);
         return 0;
+    }
+
+    for(i = 0; i < params.OriginalCount; ++i){
+        print_hex_dump(KERN_DEBUG, "decoded: ", DUMP_PREFIX_OFFSET, 20, 1, (void*)blocks[i].Block, 16, true);
+        memcpy(dataBlocks[i], blocks[i].Block, params.BlockBytes);
     }
 
     // Decode for m>1

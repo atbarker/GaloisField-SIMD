@@ -82,7 +82,7 @@ int ExampleUsage(void)
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec)); 
     if (ret)
     {
-	printk(KERN_INFO "decode failed %d \n", ret);
+	printk(KERN_INFO "Decode failed %d \n", ret);
         return 1;
     }
     
