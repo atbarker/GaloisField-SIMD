@@ -278,7 +278,8 @@ static inline unsigned char cauchy_get_original_block_index(cauchy_encoder_param
 int cauchy_rs_encode(
     cauchy_encoder_params params, // Encoder parameters
     cauchy_block* originals,      // Array of pointers to original blocks
-    void* recoveryBlocks);       // Output recovery blocks end-to-end
+    void* recoveryBlocks,
+    uint8_t** recoveryArray);       // Output recovery blocks end-to-end
 
 // Encode one block.
 // TODO validate input

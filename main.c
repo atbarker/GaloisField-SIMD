@@ -27,6 +27,10 @@ int ExampleFileUsage(void)
     cauchy_block *blocks = kmalloc(sizeof(cauchy_block) * 256, GFP_KERNEL);
     int i, ret;
     struct timespec timespec1, timespec2;
+    uint8_t** recoveryArray = kmalloc(sizeof(uint8_t*) * 4, GFP_KERNEL);
+    for(i = 0; i < 4; i++){
+        recoveryArray[i] = kmalloc(4096, GFP_KERNEL);
+    }
 
     if (cauchy_init())
     {
@@ -65,7 +69,7 @@ int ExampleFileUsage(void)
 
     // Generate recovery data
     getnstimeofday(&timespec1);
-    if (cauchy_rs_encode(params, blocks, recoveryBlocks))
+    if (cauchy_rs_encode(params, blocks, recoveryBlocks, recoveryArray))
     {
         return 1;
     }
@@ -114,6 +118,7 @@ int ExampleFileUsage(void)
     kfree(filedatacopy);
     kfree(recoveryBlocks);
     kfree(blocks);
+    kfree(recoveryArray);
     return 0;
 }
 
