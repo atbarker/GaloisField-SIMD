@@ -88,7 +88,7 @@ typedef char __v32qi __attribute__ ((__vector_size__ (32)));
 
 #if defined(ANDROID) || defined(IOS) || defined(LINUX_ARM)
     #define GF_ARM //we are on ARM
-    #define ALIGNED_ACCESSES //Inputs must be aligned to GF_ALIGN_BYTES
+    #define ALIGNED_ACCESSES //therefore inputs must be aligned
     #if defined(HAVE_ARM_NEON_H)
         #include <arm_neon.h>
         #define M128 uint8x16_t
@@ -100,7 +100,7 @@ typedef char __v32qi __attribute__ ((__vector_size__ (32)));
     #define M128 __m128i
 #endif
 
-// Compiler-specific force inline keyword
+// Compiler-specific force inline (GCC)
 #define FORCE_INLINE inline __attribute__((always_inline))
 
 // Compiler-specific alignment keyword, only matters on ARM
@@ -111,9 +111,8 @@ void gf_memswap(void * __restrict vx, void * __restrict vy, int bytes);
 
 
 //------------------------------------------------------------------------------
-// GF(256) Context
 
-/// The context object stores tables required to perform library calculations
+// The context object stores tables required to perform library calculations
 typedef struct{
     struct
     {
@@ -128,13 +127,13 @@ typedef struct{
     } MM256;
 #endif
 
-    // Mul/Div/Inv/Sqr tables
+    // Mul/Div/Inv/Sqr lookup tables
     uint8_t GF_MUL_TABLE[256 * 256];
     uint8_t GF_DIV_TABLE[256 * 256];
     uint8_t GF_INV_TABLE[256];
     uint8_t GF_SQR_TABLE[256];
 
-    // Log/Exp tables
+    // Log/Exp lookup tables
     uint16_t GF_LOG_TABLE[256];
     uint8_t GF_EXP_TABLE[512 * 2 + 1];
 
@@ -155,33 +154,31 @@ extern gf_ctx GFContext;
 */
 int gf_init(void);
 
-/// return x + y
+//Galois field add
 static FORCE_INLINE uint8_t gf_add(uint8_t x, uint8_t y)
 {
     return (uint8_t)(x ^ y);
 }
 
-/// return x * y
-/// For repeated multiplication by a constant, it is faster to put the constant in y.
+// Galois Field multiply
 static FORCE_INLINE uint8_t gf_mul(uint8_t x, uint8_t y)
 {
     return GFContext.GF_MUL_TABLE[((unsigned)y << 8) + x];
 }
 
-/// return x / y
-/// Memory-access optimized for constant divisors in y.
+//Galois Field divide
 static FORCE_INLINE uint8_t gf_div(uint8_t x, uint8_t y)
 {
     return GFContext.GF_DIV_TABLE[((unsigned)y << 8) + x];
 }
 
-/// return 1 / x
+//Galois Field inverse
 static FORCE_INLINE uint8_t gf_inv(uint8_t x)
 {
     return GFContext.GF_INV_TABLE[x];
 }
 
-/// return x * x
+//Galois field square
 static FORCE_INLINE uint8_t gf_sqr(uint8_t x)
 {
     return GFContext.GF_SQR_TABLE[x];
@@ -213,16 +210,14 @@ static FORCE_INLINE void gf_div_mem(void * __restrict vz, const void * __restric
 int cauchy_init(void);
 
 // Encoder parameters
-// block counts must be less than 256
+// block counts must be at most 256
 typedef struct cauchy_encoder_params_t {
     int OriginalCount;
     int RecoveryCount;
-    int BlockBytes; //block size in bytes
 } cauchy_encoder_params;
 
 typedef struct cauchy_block_t {
     uint8_t* Block;
-    // Block index.
     // For original data, it will be in the range
     //    [0..(originalCount-1)] inclusive.
     // For recovery data, the first one's Index must be originalCount,
