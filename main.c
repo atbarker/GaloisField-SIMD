@@ -70,6 +70,10 @@ int ExampleUsage(void)
     printk(KERN_INFO "Encode took: %ld nanoseconds",
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec));
 
+    //Erase stuff
+    memset(dataBlocks[0], 0, BLOCK_BYTES);
+    memset(dataBlocks[1], 0, BLOCK_BYTES);
+
     //Decode with some artificial erasures
     getnstimeofday(&timespec1);    
     ret = cauchy_rs_decode(params, dataBlocks, parityBlocks, erasures, num_erasures);
