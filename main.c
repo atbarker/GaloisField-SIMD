@@ -23,6 +23,13 @@ struct input_blocks{
     uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
 };
 
+void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
+    int i = 0;
+    for(i = 0; i < size; i++){
+        output[i] = array[i];   
+    }
+}
+
 int ExampleUsage(void)
 {   
     cauchy_encoder_params params;
@@ -49,8 +56,7 @@ int ExampleUsage(void)
 	//dataBlocksCopy[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
 	get_random_bytes(blocks->dataBlocks[i], BLOCK_BYTES);
 	memcpy(blocks->dataBlocksCopy[i], blocks->dataBlocks[i], BLOCK_BYTES);
-	dataBlocks[i] = blocks->dataBlocks[i];
-	dataBlocksCopy[i] = blocks->dataBlocksCopy[i];
+	
     }
 
     if (cauchy_init())
