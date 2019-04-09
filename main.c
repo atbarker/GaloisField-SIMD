@@ -17,6 +17,12 @@ MODULE_AUTHOR("AUSTEN BARKER");
 #define ORIGINAL_COUNT 4
 #define RECOVERY_COUNT 4
 
+struct input_blocks{
+    uint8_t dataBlocks[ORIGINAL_COUNT][BLOCK_BYTES];
+    uint8_t dataBlocksCopy[ORIGINAL_COUNT][BLOCK_BYTES];
+    uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
+};
+
 int ExampleUsage(void)
 {   
     cauchy_encoder_params params;
@@ -29,18 +35,22 @@ int ExampleUsage(void)
     //parity bytes buffer 
     uint8_t** parityBlocks = kmalloc(sizeof(uint8_t*) * RECOVERY_COUNT, GFP_KERNEL);
     //Which blocks we lose
+    struct input_blocks *blocks = kmalloc(sizeof(struct input_blocks), GFP_KERNEL);
     uint8_t erasures[2] = {0, 1};
     uint8_t num_erasures = 2;
+    uint8_t *dataBlocksAux[ORIGINAL_COUNT], *dataBlocksCopyAux[ORIGINAL_COUNT], *parityBlocksAux[RECOVERY_COUNT];
 
-    for(i = 0; i < RECOVERY_COUNT; i++){
+    /*for(i = 0; i < RECOVERY_COUNT; i++){
         parityBlocks[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
-    }
+    }*/
 
     for(i = 0; i < ORIGINAL_COUNT; i++){
-        dataBlocks[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
-	dataBlocksCopy[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
-	get_random_bytes(dataBlocks[i], BLOCK_BYTES);\
-	memcpy(dataBlocksCopy[i], dataBlocks[i], BLOCK_BYTES);
+        //dataBlocks[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
+	//dataBlocksCopy[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
+	get_random_bytes(blocks->dataBlocks[i], BLOCK_BYTES);
+	memcpy(blocks->dataBlocksCopy[i], blocks->dataBlocks[i], BLOCK_BYTES);
+	dataBlocks[i] = blocks->dataBlocks[i];
+	dataBlocksCopy[i] = blocks->dataBlocksCopy[i];
     }
 
     if (cauchy_init())
@@ -69,7 +79,7 @@ int ExampleUsage(void)
     getnstimeofday(&timespec2);
     printk(KERN_INFO "Encode took: %ld nanoseconds",
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec));
-
+    /*
     //Erase stuff
     memset(dataBlocks[0], 0, BLOCK_BYTES);
     memset(dataBlocks[1], 0, BLOCK_BYTES);
@@ -97,11 +107,12 @@ int ExampleUsage(void)
     }
 
     printk(KERN_INFO "decode worked\n");
-    
+    */
     //cleanup
     kfree(dataBlocks);
     kfree(dataBlocksCopy);
     kfree(parityBlocks);
+    kfree(blocks);
     return 0;
 }
 
