@@ -23,7 +23,7 @@ struct input_blocks{
     uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
 };
 
-inline void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
+static inline void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
     int i = 0;
     for(i = 0; i < size; i++){
         output[i] = array[i];   
