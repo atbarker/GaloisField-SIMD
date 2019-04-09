@@ -23,7 +23,7 @@ struct input_blocks{
     uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
 };
 
-void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
+void inline twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
     int i = 0;
     for(i = 0; i < size; i++){
         output[i] = array[i];   
@@ -45,7 +45,6 @@ int ExampleUsage(void)
     struct input_blocks *blocks = kmalloc(sizeof(struct input_blocks), GFP_KERNEL);
     uint8_t erasures[2] = {0, 1};
     uint8_t num_erasures = 2;
-    uint8_t *dataBlocksAux[ORIGINAL_COUNT], *dataBlocksCopyAux[ORIGINAL_COUNT], *parityBlocksAux[RECOVERY_COUNT];
 
     /*for(i = 0; i < RECOVERY_COUNT; i++){
         parityBlocks[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
@@ -56,7 +55,8 @@ int ExampleUsage(void)
 	//dataBlocksCopy[i] = kmalloc(BLOCK_BYTES, GFP_KERNEL);
 	get_random_bytes(blocks->dataBlocks[i], BLOCK_BYTES);
 	memcpy(blocks->dataBlocksCopy[i], blocks->dataBlocks[i], BLOCK_BYTES);
-	
+        twodtopointer(blocks->dataBlocks, ORIGINAL_COUNT, dataBlocks);
+        twodtopointer(blocks->parityBlocks, ORIGINAL_COUNT, parityBlocks);	
     }
 
     if (cauchy_init())
