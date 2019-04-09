@@ -23,7 +23,7 @@ struct input_blocks{
     uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
 };
 
-void inline twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
+inline void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
     int i = 0;
     for(i = 0; i < size; i++){
         output[i] = array[i];   
@@ -85,10 +85,10 @@ int ExampleUsage(void)
     getnstimeofday(&timespec2);
     printk(KERN_INFO "Encode took: %ld nanoseconds",
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec));
-    /*
+    
     //Erase stuff
-    memset(dataBlocks[0], 0, BLOCK_BYTES);
-    memset(dataBlocks[1], 0, BLOCK_BYTES);
+    memset(blocks->dataBlocks[0], 0, BLOCK_BYTES);
+    memset(blocks->dataBlocks[1], 0, BLOCK_BYTES);
 
     //Decode with some artificial erasures
     getnstimeofday(&timespec1);    
@@ -105,7 +105,7 @@ int ExampleUsage(void)
     //verify that we have a successful decode 
     for(i = 0; i < ORIGINAL_COUNT; i++){
         for(j = 0; j < BLOCK_BYTES; j++){
-            if(dataBlocks[i][j] != dataBlocksCopy[i][j]){
+            if(blocks->dataBlocks[i][j] != blocks->dataBlocksCopy[i][j]){
                 printk(KERN_INFO "Decode errors on block %d byte %d\n", i, j);
 	        return -1;
             }
@@ -113,7 +113,6 @@ int ExampleUsage(void)
     }
 
     printk(KERN_INFO "decode worked\n");
-    */
     //cleanup
     kfree(dataBlocks);
     kfree(dataBlocksCopy);
