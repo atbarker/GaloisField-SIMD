@@ -18,9 +18,9 @@ MODULE_AUTHOR("AUSTEN BARKER");
 #define RECOVERY_COUNT 4
 
 struct input_blocks{
-    uint8_t dataBlocks[ORIGINAL_COUNT][BLOCK_BYTES];
-    uint8_t dataBlocksCopy[ORIGINAL_COUNT][BLOCK_BYTES];
-    uint8_t parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
+    uint8_t __attribute__((aligned(4096))) dataBlocks[ORIGINAL_COUNT][BLOCK_BYTES];
+    uint8_t __attribute__((aligned(4096))) dataBlocksCopy[ORIGINAL_COUNT][BLOCK_BYTES];
+    uint8_t __attribute__((aligned(4096))) parityBlocks[RECOVERY_COUNT][BLOCK_BYTES]; 
 };
 
 static inline void twodtopointer(uint8_t array[][BLOCK_BYTES], int size, uint8_t* output[BLOCK_BYTES]){
@@ -87,7 +87,8 @@ int ExampleUsage(void)
 (timespec2.tv_sec - timespec1.tv_sec) * 1000000000 + (timespec2.tv_nsec - timespec1.tv_nsec));
     
     //Erase stuff
-    memset(blocks->dataBlocks[0], 0, BLOCK_BYTES);
+    //memset(blocks->dataBlocks[0], 0, BLOCK_BYTES);
+    get_random_bytes(blocks->dataBlocks[0], BLOCK_BYTES);
     memset(blocks->dataBlocks[1], 0, BLOCK_BYTES);
 
     //Decode with some artificial erasures
